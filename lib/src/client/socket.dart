@@ -249,8 +249,6 @@ class Socket extends eng.Emitter {
   }
 
   /// Disconnects the socket.
-  ///
-  /// return a reference to this object.
   Future<Null> close() async {
     if (connected) {
       log.d('performing disconnect ($namespace)');
@@ -261,7 +259,5 @@ class Socket extends eng.Emitter {
   }
 
   /// Disconnects the socket.
-  ///
-  /// return a reference to this object.
   Future<Null> disconnect() async => await close();
 }

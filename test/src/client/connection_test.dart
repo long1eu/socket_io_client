@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:engine_io_client/engine_io_client.dart' show Listener, Log;
+import 'package:engine_io_client/engine_io_client.dart' show Listener, Log, SocketOptions, SocketOptionsBuilder;
+import 'package:socket_io_client/socket_io_client.dart';
 import 'package:socket_io_client/src/client/manager.dart';
 import 'package:socket_io_client/src/client/socket.dart';
 import 'package:socket_io_client/src/models/manager_event.dart';
@@ -16,7 +17,17 @@ void main() {
 
   test('connectionToLocalHost', () async {
     final List<dynamic> values = <dynamic>[];
-    final Socket socket = Connection.client();
+
+    final SocketOptions opts = new SocketOptions((SocketOptionsBuilder b) {
+      b
+        //..port = Connection.PORT
+        ..path = '/socket.io'
+        ..host = 'socket-io-chat.now.sh';
+    });
+
+    final Socket socket = Io.socket('https://socket-io-chat.now.sh', new ManagerOptions((b) {
+      b..options = opts.toBuilder();
+    }));
 
     socket
       ..on(SocketEvent.connect, (List<dynamic> args) async {
@@ -29,7 +40,7 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<Null>.delayed(const Duration(milliseconds: 20000), () {});
     log.d('values $values');
 
     expect(values[0], 'done');
