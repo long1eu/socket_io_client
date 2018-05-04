@@ -1,50 +1,47 @@
-library packet;
-
-import 'package:built_value/built_value.dart';
-import 'package:built_value/serializer.dart';
+import 'package:engine_io_client/engine_io_client.dart';
 import 'package:socket_io_client/src/models/packet_type.dart';
 
-part 'packet.g.dart';
+class Packet {
+  const Packet({this.type = PacketType.event, this.id = -1, this.namespace, this.data, this.attachments, this.query});
 
-abstract class Packet implements Built<Packet, PacketBuilder> {
-  factory Packet([PacketBuilder updates(PacketBuilder b)]) {
-    return new _$Packet((PacketBuilder b) {
-      return b
-        ..id = -1
-        ..type = PacketType.event
-        ..update(updates);
-    });
+  final PacketType type;
+
+  final int id;
+
+  final String namespace;
+
+  final Object data;
+
+  final int attachments;
+
+  final String query;
+
+  static Packet parserError = new Packet(type: PacketType.error, data: 'parser error');
+
+  @override
+  String toString() {
+    return (new ToStringHelper('Packet')
+          ..add('type', type)
+          ..add('id', id)
+          ..add('namespace', namespace)
+          ..add('data', data)
+          ..add('attachments', attachments)
+          ..add('query', query))
+        .toString();
   }
 
-  factory Packet.fromValues(PacketType type) {
-    return new Packet((PacketBuilder b) {
-      b..type = type;
-    });
-  }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Packet &&
+          runtimeType == other.runtimeType &&
+          type == other.type &&
+          id == other.id &&
+          namespace == other.namespace &&
+          data == other.data &&
+          attachments == other.attachments &&
+          query == other.query;
 
-  Packet._();
-
-  PacketType get type;
-
-  int get id;
-
-  @nullable
-  String get namespace;
-
-  @nullable
-  Object get data;
-
-  @nullable
-  int get attachments;
-
-  @nullable
-  String get query;
-
-  static Packet parserError = new Packet((PacketBuilder b) {
-    b
-      ..type = PacketType.error
-      ..data = 'parser error';
-  });
-
-  static Serializer<Packet> get serializer => _$packetSerializer;
+  @override
+  int get hashCode => type.hashCode ^ id.hashCode ^ namespace.hashCode ^ data.hashCode ^ attachments.hashCode ^ query.hashCode;
 }

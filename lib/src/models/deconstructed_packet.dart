@@ -1,19 +1,31 @@
-library deconstructed_packet;
-
-import 'package:built_value/built_value.dart';
-import 'package:built_value/serializer.dart';
+import 'package:engine_io_client/engine_io_client.dart' hide Packet;
+import 'package:meta/meta.dart';
 import 'package:socket_io_client/src/models/packet.dart';
 
-part 'deconstructed_packet.g.dart';
+class DeconstructedPacket {
+  const DeconstructedPacket({@required this.packet, @required this.buffers});
 
-abstract class DeconstructedPacket implements Built<DeconstructedPacket, DeconstructedPacketBuilder> {
-  factory DeconstructedPacket([DeconstructedPacketBuilder updates(DeconstructedPacketBuilder b)]) = _$DeconstructedPacket;
+  final Packet packet;
 
-  DeconstructedPacket._();
+  final List<Object> buffers;
 
-  Packet get packet;
+  DeconstructedPacket copyWith({Packet packet, List<Object> buffers}) {
+    return new DeconstructedPacket(
+      packet: packet ?? this.packet,
+      buffers: buffers ?? buffers,
+    );
+  }
 
-  List<Object> get buffers;
+  @override
+  String toString() {
+    return (new ToStringHelper('DeconstructedPacket')..add('packet', packet)..add('buffers', buffers)).toString();
+  }
 
-  static Serializer<DeconstructedPacket> get serializer => _$deconstructedPacketSerializer;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DeconstructedPacket && runtimeType == other.runtimeType && packet == other.packet && buffers == other.buffers;
+
+  @override
+  int get hashCode => packet.hashCode ^ buffers.hashCode;
 }
