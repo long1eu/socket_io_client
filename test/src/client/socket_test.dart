@@ -17,7 +17,7 @@ void main() {
     final Socket socket = Connection.client();
 
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         values.add(socket.id);
       });
@@ -35,7 +35,7 @@ void main() {
     final Socket socket = Connection.client(path: '/foo');
 
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         values.add(socket.id);
       });
@@ -53,9 +53,9 @@ void main() {
     final Socket socket = Connection.client();
 
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
-        socket.on(SocketEvent.disconnect, (List<dynamic> args) {
+        socket.on(Socket.eventDisconnect, (List<dynamic> args) {
           values.add(socket.id);
         });
 
@@ -79,9 +79,9 @@ void main() {
     final Socket socket = Connection.client(options: options);
 
     socket
-      ..on(SocketEvent.connectError, (List<dynamic> args) async {
+      ..on(Socket.eventConnectError, (List<dynamic> args) async {
         log.d('connect: $args');
-        socket.on(SocketEvent.disconnect, (List<dynamic> args) {
+        socket.on(Socket.eventDisconnect, (List<dynamic> args) {
           values.add(new StateError('Unexpected'));
         });
       });
@@ -102,15 +102,15 @@ void main() {
     final Socket socket = Connection.client();
 
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         bool pinged = false;
         socket
-          ..once(SocketEvent.ping, (List<dynamic> args) {
+          ..once(Socket.eventPing, (List<dynamic> args) {
             log.d('ping: $args');
             pinged = true;
           })
-          ..once(SocketEvent.pong, (List<dynamic> args) {
+          ..once(Socket.eventPong, (List<dynamic> args) {
             log.d('pong: $args');
             final int ms = args[0];
             values.add(pinged);
@@ -131,15 +131,15 @@ void main() {
 
     final Socket socket = Connection.client();
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         values.add(socket.id);
 
         socket
-          ..on(SocketEvent.reconnectAttempt, (List<dynamic> args) {
+          ..on(Socket.eventReconnectAttempt, (List<dynamic> args) {
             values.add(socket.id);
           })
-          ..on(SocketEvent.reconnect, (List<dynamic> args) {
+          ..on(Socket.eventReconnect, (List<dynamic> args) {
             values.add(socket.id);
           });
 

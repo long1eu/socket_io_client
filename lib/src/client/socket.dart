@@ -1,22 +1,57 @@
 import 'dart:async';
 
 import 'package:engine_io_client/engine_io_client.dart' as eng;
+import 'package:rxdart/rxdart.dart';
 import 'package:socket_io_client/src/client/manager.dart';
-import 'package:socket_io_client/src/client/on.dart';
-import 'package:socket_io_client/src/models/manager_event.dart';
 import 'package:socket_io_client/src/models/manager_options.dart';
-import 'package:socket_io_client/src/models/manager_state.dart';
 import 'package:socket_io_client/src/models/packet.dart';
 import 'package:socket_io_client/src/models/packet_type.dart';
-import 'package:socket_io_client/src/models/socket_event.dart';
 
-typedef Future<Null> Ack([List<dynamic> args]);
+typedef void Ack([List<dynamic> args]);
 
 class Socket extends eng.Emitter {
-  static final eng.Log log = new eng.Log('Socket');
+  static const String eventConnect = 'connect';
+  static const String eventConnecting = 'connecting';
+  static const String eventDisconnect = 'disconnect';
+  static const String eventError = 'error';
+  static const String eventMessage = 'message';
+  static const String eventConnectError = Manager.eventConnectError;
+  static const String eventConnectTimeout = Manager.eventConnectTimeout;
+  static const String eventReconnect = Manager.eventReconnect;
+  static const String eventReconnectError = Manager.eventReconnectError;
+  static const String eventReconnectFailed = Manager.eventReconnectFailed;
+  static const String eventReconnectAttempt = Manager.eventReconnectAttempt;
+  static const String eventReconnecting = Manager.eventReconnecting;
+  static const String eventPing = Manager.eventPing;
+  static const String eventPong = Manager.eventPong;
+
+  static const List<String> eventValues = const <String>[
+    eventConnect,
+    eventConnecting,
+    eventDisconnect,
+    eventError,
+    eventMessage,
+    eventConnectError,
+    eventConnectTimeout,
+    eventReconnect,
+    eventReconnectError,
+    eventReconnectFailed,
+    eventReconnectAttempt,
+    eventReconnecting,
+    eventPing,
+    eventPong
+  ];
+
+  static final eng.Log log = new eng.Log('SocketIo.Socket');
+
+  final StreamController<List<dynamic>> _receiveController = new StreamController<List<dynamic>>.broadcast();
+  final StreamController<Packet> _sendController = new StreamController<Packet>.broadcast();
+
+  StreamSubscription<Packet> _receiveSub;
+  StreamSubscription<Packet> _sendSub;
+
   final List<List<dynamic>> receiveBuffer = <List<dynamic>>[];
   final List<Packet> sendBuffer = <Packet>[];
-  List<OnDestroy> subs;
 
   ///  A property on the socket instance that is equal to the underlying engine.io socket id.
   String id;
@@ -25,239 +60,207 @@ class Socket extends eng.Emitter {
   String namespace;
   Manager io;
   String query;
-  Map<int, Ack> acks = <int, Ack>{};
+  Map<int, StreamController<dynamic>> acks = <int, StreamController<dynamic>>{};
 
-  Socket(this.io, this.namespace, ManagerOptions opts) : query = opts?.options?.rawQuery;
-
-  void subEvents() {
-    if (subs != null) return;
-    subs = <OnDestroy>[]
-      ..add(new On(io, ManagerEvent.open, (List<dynamic> args) async => await onOpen(args)).destroy)
-      ..add(new On(io, ManagerEvent.packet, (List<dynamic> args) async => await onPacket(args[0])).destroy)
-      ..add(new On(io, ManagerEvent.close, (List<dynamic> args) async {
-        return await onClose(args.isNotEmpty ? args[0] : null);
-      }).destroy);
+  Socket(this.io, this.namespace, ManagerOptions opts) : query = opts?.rawQuery {
+    io.on(Manager.eventOpen).listen((eng.Event event) => onOpen());
+    io.on(Manager.eventPacket).listen((eng.Event event) => onPacket(event.args[0]));
+    io.on(Manager.eventClose).listen((eng.Event event) => onClose(event.args.isEmpty ? null : event.args[0]));
   }
 
+  Observable<Packet> get _send$ => new Observable<Packet>(_sendController.stream)
+      .bufferTest((Packet packet) => connected)
+      .expand((_) => _)
+      .forEach((Packet p) => packet(p))
+      .asObservable();
+
+  Observable<Packet> get _receive$ => new Observable<List<dynamic>>(_receiveController.stream)
+      .where((List<dynamic> args) => args.isNotEmpty)
+      .bufferTest((List<dynamic> _) => connected)
+      .expand((_) => _)
+      .forEach((List<dynamic> args) => super.emit(args[0], args.sublist(1)))
+      .asObservable();
+
   /// Connects the socket.
-  Future<Null> open() async {
+  void open() {
     log.d('open: $connected');
     if (connected) return;
 
-    subEvents();
-    await io.open(); // ensure open
-    log.d(io.readyState);
-    if (io.readyState == ManagerState.OPEN) await onOpen(null);
-    await emit(SocketEvent.connecting);
+    io.once(Manager.eventOpen).doOnData((eng.Event _) => log.d('readyState: ${io.readyState}')).listen((eng.Event event) {
+      if (io.readyState == Manager.stateOpen) onOpen();
+      emit(Socket.eventConnecting);
+    });
+    io.open();
   }
 
   /// Connects the socket.
-  Future<Socket> connect() async => await open();
+  void connect() => open();
 
   /// Send messages.
   ///
   /// [args] data to send;
   /// return a reference of this object.
-  Future<Null> send(dynamic args) async {
-    await emit(SocketEvent.message, args);
-  }
-
-  @override
-  Future<Null> emit(String event, [List<dynamic> args = const <dynamic>[]]) async {
-    log.d('emit called with: $event, args:$args');
-    if (SocketEvent.values.contains(event)) return await super.emit(event, args);
-
-    Ack ack;
-    List<dynamic> _args;
-    final int lastIndex = args.length - 1;
-
-    if (args.isNotEmpty && args[lastIndex] is Ack) {
-      _args = <dynamic>[]..length = lastIndex;
-      for (int i = 0; i < lastIndex; i++) {
-        _args[i] = args[i];
-      }
-      ack = args[lastIndex];
-    } else {
-      _args = args;
-      ack = null;
-    }
-
-    await emitAck(event, _args, ack);
+  void send(dynamic args) {
+    emit(Socket.eventMessage, args);
   }
 
   /// Emits an event with an acknowledge.
   ///
   /// [event] the name if the event
   /// [args] data to be sent
-  /// return a reference of this object.
-  Future<Null> emitAck(String event, List<dynamic> args, Ack ack) async {
-    log.d('emitAck called with: event:$event, args:$args, ack:$ack');
-
-    final List<dynamic> list = <dynamic>[];
-    list.add(event);
-    if (args != null) args.forEach(list.add);
-
-    final PacketBuilder builder = new Packet.fromValues(PacketType.event).toBuilder()..data = list;
-
-    if (ack != null) {
-      log.d('emitting packet with ack id $ids');
-      acks[ids] = ack;
-      builder.id = ids++;
+  /// returns a Stream that will receive the ack event and then close.
+  @override
+  Observable<dynamic> emit(String event, [List<dynamic> args = const <dynamic>[], bool receiveAck = false]) {
+    log.d('emit with: event:$event, args:$args');
+    if (Socket.eventValues.contains(event)) {
+      super.emit(event, args);
+      return new Observable<dynamic>.empty();
     }
-    log.d('emitAck-Connected: $connected packet: ${builder.build()}');
-    if (connected) {
-      await packet(builder);
+
+    final List<dynamic> list = <dynamic>[event];
+    if (args != null) list.addAll(args);
+
+    Packet packet = new Packet(type: PacketType.event, data: list);
+
+    int id;
+    if (receiveAck != null) {
+      id = ids++;
+      log.d('emitting packet with ack id $id');
+      acks[id] = new StreamController<dynamic>();
+      packet = packet.copyWith(id: id);
+    }
+    log.d('emitAck id: $id connected: $connected packet: $packet');
+
+    _sendController.add(packet);
+
+    if (id != null) {
+      return new Observable<dynamic>(acks[id].stream);
     } else {
-      sendBuffer.add(builder.build());
+      return new Observable<dynamic>.empty();
     }
   }
 
-  Future<Null> packet(PacketBuilder builder) async {
-    builder.namespace = namespace;
-    await io.packet(builder.build());
-  }
+  void packet(Packet packet) => io.packet(packet.copyWith(namespace: namespace));
 
-  Future<Null> onOpen(List<dynamic> args) async {
-    log.d('transport is open - connecting $args');
+  void onOpen() {
+    log.d('transport is open - connecting');
+
+    _sendSub ??= _send$.listen(null);
+    _receiveSub ??= _receive$.listen(null);
 
     if (namespace != '/') {
-      final PacketBuilder builder = new Packet.fromValues(PacketType.connect).toBuilder();
-      if (query != null && query.isNotEmpty) builder.query = query;
-      log.d(builder.build());
-      await packet(builder);
+      Packet p = const Packet(type: PacketType.connect);
+      if (query != null && query.isNotEmpty) p = p.copyWith(query: query);
+      packet(p);
     }
   }
 
-  Future<Null> onClose(String reason) async {
+  void onClose(String reason) {
     log.d('close ($reason)');
     connected = false;
     id = null;
-    await emit(SocketEvent.disconnect, <String>[reason]);
+    emit(Socket.eventDisconnect, <String>[reason]);
   }
 
-  Future<Null> onPacket(Packet packet) async {
+  void onPacket(Packet packet) {
     log.d('onPacket: $packet');
 
     if (packet.namespace != namespace) return;
 
     switch (packet.type) {
       case PacketType.connect:
-        await onConnect();
+        onConnect();
         break;
 
       case PacketType.event:
       case PacketType.binaryEvent:
-        await onEvent(packet);
+        onEvent(packet);
         break;
 
       case PacketType.ack:
       case PacketType.binaryAck:
-        await onAck(packet);
+        onAck(packet);
         break;
 
       case PacketType.disconnect:
-        await onDisconnect();
+        onDisconnect();
         break;
 
       case PacketType.error:
-        await emit(SocketEvent.error, <String>[packet.data]);
+        emit(Socket.eventError, <String>[packet.data]);
         break;
     }
   }
 
-  Future<Null> onEvent(Packet packet) async {
+  void onEvent(Packet packet) {
     final List<dynamic> args = packet.data;
     log.d('emitting event $args');
 
     if (packet.id >= 0) {
       log.d('attaching ack callback to event');
-      final Ack a = await ack(packet.id);
+      final Ack a = ack(packet.id);
       args.add(a);
     }
 
-    if (connected) {
-      if (args.isEmpty) return;
-      final String event = args.removeAt(0).toString();
-      log.d('args: onEvent: $args');
-      await super.emit(event, args);
-    } else {
-      receiveBuffer.add(args);
-    }
+    _receiveController.add(args);
   }
 
-  Future<Ack> ack(int id) async {
+  Function ack(int id) {
     bool sent = false;
-    return ([List<dynamic> args]) async {
+    return ([List<dynamic> args]) {
       args ??= const <dynamic>[];
       if (sent) return;
       sent = true;
       log.d('sending ack $args');
 
-      final List<dynamic> jsonArgs = <dynamic>[];
-      jsonArgs.addAll(args);
-
-      await packet(new PacketBuilder()
-        ..type = PacketType.ack
-        ..id = id
-        ..data = jsonArgs);
+      packet(new Packet(id: id, type: PacketType.ack, data: args));
     };
   }
 
-  Future<Null> onAck(Packet packet) async {
-    final Ack ack = acks.remove(packet.id);
-
+  void onAck(Packet packet) {
+    final StreamController<dynamic> ack = acks.remove(packet.id);
+    log.w('onAck: $ack');
     if (ack != null) {
       log.d('calling ack ${packet.id} with ${packet.data}');
-      await ack(packet.data);
+      ack.add(packet.data);
+      ack.close();
     } else {
       log.d('bad ack ${packet.id}');
     }
   }
 
-  Future<Null> onConnect() async {
+  void onConnect() {
     log.d('onConnect');
     connected = true;
-    await emit(SocketEvent.connect);
-    await emitBuffered();
+
+    emit(Socket.eventConnect);
   }
 
-  Future<Null> emitBuffered() async {
-    final List<List<dynamic>> removed = <List<dynamic>>[];
-    receiveBuffer
-      ..removeWhere((List<dynamic> data) {
-        removed.add(data);
-        return true;
-      })
-      ..clear();
-
-    for (List<dynamic> data in removed) await super.emit(data[0], data);
-    for (Packet packet in sendBuffer) await this.packet(packet.toBuilder());
-
-    sendBuffer.clear();
-  }
-
-  Future<Null> onDisconnect() async {
+  void onDisconnect() {
     log.d('server disconnect ($namespace)');
-    await destroy();
-    await onClose('io server disconnect');
+    destroy();
+    onClose('io server disconnect');
   }
 
-  Future<Null> destroy() async {
-    subs?.removeWhere((OnDestroy onDestroy) => onDestroy());
-    subs = null;
-    await io.destroy(this);
+  void destroy() {
+    _receiveSub?.cancel();
+    _receiveSub = null;
+    _sendSub?.cancel();
+    _sendSub = null;
+
+    io.destroy(this);
   }
 
   /// Disconnects the socket.
-  Future<Null> close() async {
+  void close() {
     if (connected) {
       log.d('performing disconnect ($namespace)');
-      await packet(new Packet.fromValues(PacketType.disconnect).toBuilder());
+      packet(const Packet(type: PacketType.disconnect));
     }
-    await destroy();
-    if (connected) await onClose('io client disconnect');
+    destroy();
+    if (connected) onClose('io client disconnect');
   }
 
   /// Disconnects the socket.
-  Future<Null> disconnect() async => await close();
+  void disconnect() => close();
 }

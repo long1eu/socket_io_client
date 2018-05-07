@@ -20,18 +20,14 @@ class Helpers {
     decoder.add(errorMessage);
   }
 
-  static void testBin(Packet obj) {
-    final dynamic originalData = obj.data;
-    final List<dynamic> encodedPacks = encoder.encode(obj);
+  static void testBin(Packet packet) {
+    final dynamic originalData = packet.data;
+    final List<dynamic> encodedPacks = encoder.encode(packet);
 
     decoder = new IoDecoder();
     decoder.onDecoded((Packet p) {
-      obj = (obj.toBuilder()
-            ..data = originalData
-            ..attachments = -1)
-          .build();
-
-      //expect(p, obj);
+      packet = packet.copyWith(data: originalData, attachments: -1);
+      assertPacket(packet, p);
     });
 
     encodedPacks.forEach(decoder.add);

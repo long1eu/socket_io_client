@@ -18,12 +18,12 @@ void main() {
 
     final Socket socket = Connection.client();
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         values.add(args);
         await socket.disconnect();
       })
-      ..on(SocketEvent.disconnect, (List<dynamic> args) {
+      ..on(Socket.eventDisconnect, (List<dynamic> args) {
         log.d('disconnect $args');
         values.add(args);
       });
@@ -43,11 +43,11 @@ void main() {
 
     final Socket socket = Connection.client();
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         await socket.send(<String>['foo', 'bar']);
       })
-      ..on(SocketEvent.message, (List<dynamic> args) {
+      ..on(Socket.eventMessage, (List<dynamic> args) {
         log.d('message: $args');
         values.add(args);
       });
@@ -68,7 +68,7 @@ void main() {
     final Map<String, dynamic> foo = <String, dynamic>{'foo': 1};
     final Socket socket = Connection.client();
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         await socket.emit('echo', <dynamic>[foo, null, 'bar']);
       })
@@ -94,7 +94,7 @@ void main() {
 
     final Map<String, dynamic> foo = <String, dynamic>{'foo': 1};
     final Socket socket = Connection.client();
-    socket.on(SocketEvent.connect, (List<dynamic> args) async {
+    socket.on(Socket.eventConnect, (List<dynamic> args) async {
       log.d('connect: $args');
       await socket.emitAck(
         'ack',
@@ -120,7 +120,7 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket.on(SocketEvent.connect, (List<dynamic> args) async {
+    socket.on(Socket.eventConnect, (List<dynamic> args) async {
       log.d('connect: $args');
       await socket.emitAck('ack', null, ([List<dynamic> args]) async {
         values.add(args.length);
@@ -140,7 +140,7 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket.on(SocketEvent.connect, (List<dynamic> args) async {
+    socket.on(Socket.eventConnect, (List<dynamic> args) async {
       log.d('connect: $args');
       socket
         ..on('ack', (List<dynamic> args) async {
@@ -169,7 +169,7 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket.on(SocketEvent.connect, (List<dynamic> args) async {
+    socket.on(Socket.eventConnect, (List<dynamic> args) async {
       log.d('connect: $args');
       socket.io.engine.on(eng.SocketEvent.close, (List<dynamic> args) {
         values.add('done');
@@ -192,11 +192,11 @@ void main() {
     final Socket socket1 = Connection.client();
     Socket socket2;
     socket1
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         socket2 = Connection.client(forceNew: true);
 
-        socket2.on(SocketEvent.connect, (List<dynamic> args) async {
+        socket2.on(Socket.eventConnect, (List<dynamic> args) async {
           log.d('connect2: $args');
           await socket2.emit('broadcast', <String>['hi']);
         });
@@ -223,7 +223,7 @@ void main() {
     final Socket socket = Connection.client();
 
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         await socket.emit('room', <String>['hi']);
       })
@@ -253,7 +253,7 @@ void main() {
 
     final Socket socket = Connection.client(options: options);
 
-    socket.io.on(ManagerEvent.transport, (List<dynamic> args) {
+    socket.io.on(Manager.eventTransport, (List<dynamic> args) {
       log.d('transport $args');
       final eng.Transport transport = args[0];
       transport
@@ -283,11 +283,11 @@ void main() {
     final Socket socket = Connection.client();
 
     socket
-      ..on(SocketEvent.connect, (List<dynamic> args) async {
+      ..on(Socket.eventConnect, (List<dynamic> args) async {
         log.d('connect: $args');
         await socket.emit('requestDisconnect');
       })
-      ..on(SocketEvent.disconnect, (List<dynamic> args) {
+      ..on(Socket.eventDisconnect, (List<dynamic> args) {
         values.add('disconnected');
       });
 

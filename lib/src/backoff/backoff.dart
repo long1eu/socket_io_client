@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:engine_io_client/engine_io_client.dart';
+
 class Backoff {
   int ms = 100;
   int max = 10000;
@@ -20,4 +22,15 @@ class Backoff {
   }
 
   void reset() => attempts = 0;
+
+  @override
+  String toString() {
+    return (new ToStringHelper('Backoff')
+          ..add('ms', '$ms')
+          ..add('max', '$max')
+          ..add('factor', '$factor')
+          ..add('jitter', '$jitter')
+          ..add('attempts', '$attempts'))
+        .toString();
+  }
 }

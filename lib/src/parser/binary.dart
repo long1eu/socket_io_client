@@ -13,21 +13,12 @@ class Binary {
   static DeconstructedPacket deconstructPacket(Packet packet) {
     final List<Object> buffers = <Object>[];
 
-    final PacketBuilder builder = packet.toBuilder();
-
-    builder
-      ..data = _deconstructPacket(packet.data, buffers)
-      ..attachments = buffers.length;
+    packet = packet.copyWith(data: _deconstructPacket(packet.data, buffers), attachments: buffers.length);
 
     print(buffers.length);
-    print(builder.data);
+    print(packet.data);
 
-    final DeconstructedPacket result = new DeconstructedPacket((DeconstructedPacketBuilder b) {
-      b
-        ..packet = builder
-        ..buffers = buffers;
-    });
-
+    final DeconstructedPacket result = new DeconstructedPacket(packet: packet, buffers: buffers);
     return result;
   }
 
@@ -50,22 +41,13 @@ class Binary {
   }
 
   static Packet reconstructPacket(Packet packet, List<List<int>> buffers) {
-    final PacketBuilder builder = packet.toBuilder();
-
-    builder
-      ..data = _reconstructPacket(packet.data, buffers)
-      ..attachments = -1;
-
-    return builder.build();
+    return packet.copyWith(data: _reconstructPacket(packet.data, buffers), attachments: -1);
   }
 
   static Object _reconstructPacket(Object data, List<List<int>> buffers) {
     log.d('_reconstructPacket called with: data:$data of ${data.runtimeType}, buffers:$buffers');
     if (data is List<dynamic>) {
-      final List<dynamic> list = <dynamic>[];
-      for (dynamic value in data) list.add(_reconstructPacket(value, buffers));
-
-      return list;
+      return data.map((dynamic value) => _reconstructPacket(value, buffers)).toList();
     } else if (data is Map<String, dynamic>) {
       if (data[KEY_PLACEHOLDER] ?? false) {
         final int count = data[KEY_NUM] ?? -1;

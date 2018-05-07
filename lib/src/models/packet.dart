@@ -2,7 +2,7 @@ import 'package:engine_io_client/engine_io_client.dart';
 import 'package:socket_io_client/src/models/packet_type.dart';
 
 class Packet {
-  const Packet({this.type = PacketType.event, this.id = -1, this.namespace, this.data, this.attachments, this.query});
+  const Packet({this.type = PacketType.event, this.id = -1, this.namespace, this.data, this.attachments = 0, this.query});
 
   final PacketType type;
 
@@ -10,13 +10,31 @@ class Packet {
 
   final String namespace;
 
-  final Object data;
+  final dynamic data;
 
   final int attachments;
 
   final String query;
 
   static Packet parserError = new Packet(type: PacketType.error, data: 'parser error');
+
+  Packet copyWith({
+    PacketType type,
+    int id,
+    String namespace,
+    dynamic data,
+    int attachments,
+    String query,
+  }) {
+    return new Packet(
+      type: type ?? this.type,
+      id: id ?? this.id,
+      namespace: namespace ?? this.namespace,
+      data: data ?? this.data,
+      attachments: attachments ?? this.attachments,
+      query: query ?? this.query,
+    );
+  }
 
   @override
   String toString() {
@@ -38,6 +56,7 @@ class Packet {
           type == other.type &&
           id == other.id &&
           namespace == other.namespace &&
+          data.runtimeType == other.data.runtimeType &&
           data == other.data &&
           attachments == other.attachments &&
           query == other.query;

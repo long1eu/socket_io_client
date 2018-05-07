@@ -11,17 +11,17 @@ import 'package:socket_io_client/src/parser/parser.dart';
 import 'package:utf/utf.dart';
 
 class IoEncoder implements Encoder {
-  static final Log log = new Log('IoEncoder');
+  static final Log log = new Log('SocketIo.IoEncoder');
 
   @override
   List<dynamic> encode(Packet packet) {
-    final PacketBuilder builder = packet.toBuilder();
+    PacketType type;
     if ((packet.type == PacketType.event || packet.type == PacketType.ack) && HasBinary.hasBinary(packet.data)) {
-      builder.type = packet.type == PacketType.event ? PacketType.binaryEvent : PacketType.binaryAck;
+      type = packet.type == PacketType.event ? PacketType.binaryEvent : PacketType.binaryAck;
     }
 
-    packet = builder.build();
-    log.d('encoding packet : ${packet.data.runtimeType} : $packet');
+    packet = packet.copyWith(type: type);
+    log.d('encoding packet : $packet');
 
     if (packet.type == PacketType.binaryEvent || packet.type == PacketType.binaryAck) {
       return encodeAsBinary(packet);
@@ -33,17 +33,24 @@ class IoEncoder implements Encoder {
   }
 
   String encodeAsString(Packet packet) {
-    final StringBuffer str = new StringBuffer(packet.type.toString());
+    final StringBuffer str = new StringBuffer(packet.type);
 
-    if (packet.type == PacketType.binaryEvent || packet.type == PacketType.binaryAck) str..write(packet.attachments)..write('-');
+    if (packet.type == PacketType.binaryEvent || packet.type == PacketType.binaryAck) {
+      str..write(packet.attachments)..write('-');
+    }
 
-    if (packet.namespace != null && packet.namespace.isNotEmpty && packet.namespace != '/') str..write(packet.namespace)..write(',');
+    if (packet.namespace != null && packet.namespace.isNotEmpty && packet.namespace != '/') {
+      str..write(packet.namespace)..write(',');
+    }
 
-    if (packet.id >= 0) str.write(packet.id);
+    if (packet.id >= 0) {
+      str.write(packet.id);
+    }
+
     if (packet.data != null) {
       log.d('json: ${packet.data.runtimeType} ');
 
-      str.write(json.encode(packet.data is List ? packet.data : [packet.data], toEncodable: (dynamic object) {
+      str.write(json.encode(packet.data, toEncodable: (dynamic object) {
         log.w('toEncodable was called with object: $object of type: ${object.runtimeType}');
         return object.toString();
       }));
@@ -53,13 +60,17 @@ class IoEncoder implements Encoder {
   }
 
   List<dynamic> encodeAsBinary(Packet packet) {
+    log.d('encodeAsBinary called with: packet:[$packet]');
     final DeconstructedPacket deconstruction = Binary.deconstructPacket(packet);
     final String pack = encodeAsString(deconstruction.packet);
-    log.d(deconstruction);
+    log.d('deconstruction: $deconstruction');
+    log.d('pack: $pack');
     log.d(encodeAsString(deconstruction.packet));
     final List<dynamic> buffers = deconstruction.buffers;
 
     buffers.insert(0, pack);
+
+    print('buffers: $buffers');
     return buffers;
   }
 }
@@ -108,7 +119,7 @@ class IoDecoder implements Decoder {
 
     if (packetType == null) return Packet.parserError;
 
-    final PacketBuilder packet = new Packet.fromValues(packetType).toBuilder();
+    Packet packet = new Packet(type: packetType);
 
     if (packet.type == PacketType.binaryEvent || packet.type == PacketType.binaryAck) {
       if (!string.contains('-') || length <= i + 1) return Packet.parserError;
@@ -118,7 +129,7 @@ class IoDecoder implements Decoder {
         attachments.writeCharCode(string.codeUnitAt(i));
       }
 
-      packet.attachments = int.parse(attachments.toString());
+      packet = packet.copyWith(attachments: int.parse(attachments.toString()));
     }
 
     if (length > i + 1 && '/'.codeUnitAt(0) == string.codeUnitAt(i + 1)) {
@@ -133,9 +144,9 @@ class IoDecoder implements Decoder {
         if (i + 1 == length) break;
       }
 
-      packet.namespace = namespace.toString();
+      packet = packet.copyWith(namespace: namespace.toString());
     } else {
-      packet.namespace = '/';
+      packet = packet.copyWith(namespace: '/');
     }
 
     if (length > i + 1) {
@@ -161,7 +172,7 @@ class IoDecoder implements Decoder {
         }
 
         try {
-          packet.id = int.parse(id.toString());
+          packet = packet.copyWith(id: int.parse(id.toString()));
         } catch (e) {
           return Packet.parserError;
         }
@@ -171,17 +182,17 @@ class IoDecoder implements Decoder {
     if (length > i + 1) {
       try {
         i++;
-        final String json = string.substring(i);
-        final dynamic value = JSON.decode(json);
-        packet.data = value;
+        final String data = string.substring(i);
+        final dynamic value = json.decode(data);
+        packet = packet.copyWith(data: value);
       } catch (e) {
         log.d('An error occured while retrieving data from JSON $e');
         return Packet.parserError;
       }
     }
 
-    log.d('decoded $string as ${packet.build()}');
-    return packet.build();
+    log.d('decoded $string as $packet');
+    return packet;
   }
 
   @override

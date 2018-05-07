@@ -3,38 +3,58 @@ import 'dart:collection';
 
 import 'package:engine_io_client/engine_io_client.dart' as eng;
 import 'package:meta/meta.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:socket_io_client/src/backoff/backoff.dart';
-import 'package:socket_io_client/src/client/on.dart';
 import 'package:socket_io_client/src/client/socket.dart';
-import 'package:socket_io_client/src/client/socket_io_exception.dart';
-import 'package:socket_io_client/src/models/manager_event.dart';
+import 'package:socket_io_client/src/client/socket_io_error.dart';
 import 'package:socket_io_client/src/models/manager_options.dart';
-import 'package:socket_io_client/src/models/manager_state.dart';
 import 'package:socket_io_client/src/models/packet.dart';
 import 'package:socket_io_client/src/models/packet_type.dart';
-import 'package:socket_io_client/src/models/socket_event.dart';
 import 'package:socket_io_client/src/parser/io_parser.dart';
 
 class Manager extends eng.Emitter {
-  static final eng.Log log = new eng.Log('Manager');
+  static const String eventOpen = 'open';
+  static const String eventClose = 'close';
+  static const String eventPacket = 'packet';
+  static const String eventError = 'error';
+  static const String eventConnectError = 'connect_error';
+  static const String eventConnectTimeout = 'connect_timeout';
+  static const String eventReconnect = 'reconnect';
+  static const String eventReconnectError = 'reconnect_error';
+  static const String eventReconnectFailed = 'reconnect_failed';
+  static const String eventReconnectAttempt = 'reconnect_attempt';
+  static const String eventReconnecting = 'reconnecting';
+  static const String eventPing = 'ping';
+  static const String eventPong = 'pong';
+  static const String eventTransport = 'transport';
+
+  static const String stateClosed = 'closed';
+  static const String stateOpening = 'opening';
+  static const String stateOpen = 'open';
+
+  static final eng.Log log = new eng.Log('SocketIo.Manager');
+
   Map<String, Socket> namespaces = <String, Socket>{};
   HashSet<Socket> connecting = new HashSet<Socket>();
-  List<OnDestroy> subscriptions = <OnDestroy>[];
+
+  final StreamController<Packet> _packetEncoderStream = new StreamController<Packet>.broadcast();
+  final StreamController<eng.Event> _timeoutStream = new StreamController<eng.Event>.broadcast();
+
+  StreamSubscription<eng.Event> _packetEncoderSubscription;
+  StreamSubscription<eng.Event> _timeoutSubscription;
 
   eng.Socket engine;
 
   ManagerOptions options;
   Backoff backoff;
-  ManagerState readyState;
+  String readyState;
   Uri url;
   bool encoding;
-  List<Packet> packetBuffer;
   IoEncoder encoder;
   IoDecoder decoder;
-  bool _reconnection;
+
   bool _reconnecting = false;
   bool _skipReconnect;
-  int reconnectionAttempts;
   int _reconnectionDelay = 0;
   int _reconnectionDelayMax = 0;
   double _randomizationFactor = 0.0;
@@ -42,12 +62,11 @@ class Manager extends eng.Emitter {
 
   DateTime _lastPing;
 
-  Manager({@required String url, ManagerOptions options}) : assert(url != null) {
-    options = options ?? new ManagerOptions();
-    this.options = options;
+  Manager({@required String url, this.options = const ManagerOptions()}) : assert(url != null) {
+    encoder = options.encoder ?? new IoEncoder();
+    decoder = options.decoder ?? new IoDecoder();
 
-    _reconnection = options.reconnection;
-    reconnectionAttempts = options.reconnectionAttempts;
+    timeout = options.timeout;
     reconnectionDelay = options.reconnectionDelay;
     reconnectionDelayMax = options.reconnectionDelayMax;
     randomizationFactor = options.randomizationFactor;
@@ -57,14 +76,18 @@ class Manager extends eng.Emitter {
       ..max = _reconnectionDelayMax
       ..jitter = _randomizationFactor;
 
-    timeout = options.timeout;
-    readyState = ManagerState.CLOSED;
+    readyState = Manager.stateClosed;
     this.url = Uri.parse(url);
     encoding = false;
-    packetBuffer = <Packet>[];
-    encoder = options.encoder != null ? options.encoder : new IoEncoder();
-    decoder = options.decoder != null ? options.decoder : new IoDecoder();
   }
+
+  Observable<eng.Event> get buffer$ => new Observable<Packet>(_packetEncoderStream.stream)
+      .bufferTest((Packet packet) => !encoding)
+      .expand((_) => _)
+      .map((Packet packet) => encoder.encode(packet))
+      .doOnData((_) => encoding = false)
+      .expand<dynamic>((List<dynamic> values) => values)
+      .flatMap((dynamic value) => engine.write$(value));
 
   double get randomizationFactor => _randomizationFactor;
 
@@ -87,10 +110,9 @@ class Manager extends eng.Emitter {
     backoff?.ms = value;
   }
 
-  Future<Null> _emitAll(String event, [List<dynamic> args]) async {
-    await emit(event, args);
-    for (String key in namespaces.keys)
-      await namespaces[key].emit(event, args);
+  void _emitAll(String event, [List<dynamic> args]) {
+    emit(event, args);
+    namespaces.values.forEach((Socket socket) => socket.emit(event, args));
   }
 
   ///Update `socket.id` of all sockets
@@ -101,118 +123,91 @@ class Manager extends eng.Emitter {
     return '$nsp${engine.id}';
   }
 
-  Future<Null> maybeReconnectOnOpen() async {
+  void maybeReconnectOnOpen() {
     // Only try to reconnect if it's the first time we're connecting
-    if (!_reconnecting && _reconnection && backoff.attempts == 0) await reconnect();
+    if (!_reconnecting && options.reconnection && backoff.attempts == 0) reconnect();
   }
 
-  Future<Manager> open({eng.Listener listener}) async {
+  void open() {
     log.d('readyState $readyState');
 
-    if (readyState == ManagerState.OPEN || readyState == ManagerState.OPENING) return this;
+    if (readyState == Manager.stateOpen || readyState == Manager.stateOpening) return;
 
     log.d('opening $url');
-    engine = new eng.Socket(new eng.SocketOptions.fromUri(url, options.options));
+    engine = new eng.Socket(new eng.SocketOptions.fromUri(url, options));
 
-    readyState = ManagerState.OPENING;
+    readyState = Manager.stateOpening;
     _skipReconnect = false;
 
-    // propagate transport event.
-    engine.on(eng.SocketEvent.transport, (List<dynamic> args) async => await emit(ManagerEvent.transport, args));
+    decoder.onDecoded(onDecoded);
+    engine.on(eng.Socket.eventData).listen((eng.Event event) => decoder.add(event.args[0]));
+    engine.on(eng.Socket.eventTransport).listen((eng.Event event) => emit(Manager.eventTransport, event.args));
+    engine.on(eng.Socket.eventOpen).doOnData((eng.Event event) => log.d('openSub')).listen((eng.Event event) => _onOpen());
+    engine.on(eng.Socket.eventError).doOnData((eng.Event event) => log.d('connect_error')).listen(connectError);
 
-    final On openSub = new On(engine, eng.SocketEvent.open, (List<dynamic> args) async {
-      log.d('openSub');
-      await _onOpen();
-      if (listener != null) await listener(null);
-    });
+    engine.open();
+    log.d('engine state: ${engine.readyState}');
+  }
 
-    final On errorSub = new On(engine, eng.SocketEvent.error, (List<dynamic> objects) async {
-      log.d('connect_error');
-      cleanUp();
-      readyState = ManagerState.CLOSED;
-      await _emitAll(ManagerEvent.connectError, objects);
-      if (listener != null) {
-        await listener(<Error>[new SocketIOException('Connection error', objects is Error ? objects : null)]);
-      } else {
-        // Only do this if there is no fn to handle the error
-        await maybeReconnectOnOpen();
-      }
-    });
+  void connectTimeout() {
+    engine.off(eng.Socket.eventOpen);
+    engine.close();
+    engine.emit(eng.Socket.eventError, <Error>[new SocketIOError('timeout')]);
+    _emitAll(Manager.eventConnectTimeout, <int>[timeout]);
+  }
+
+  void connectError(eng.Event event) {
+    //cleanUp();
+    readyState = Manager.stateClosed;
+    _emitAll(Manager.eventConnectError, event.args);
+    maybeReconnectOnOpen();
+  }
+
+  void _onOpen() {
+    log.d('_onOpen');
+
+    //cleanUp();
+    readyState = Manager.stateOpen;
+    emit(Manager.eventOpen);
+
+    engine.on(eng.Socket.eventPing).listen((eng.Event event) => onPing());
+    engine.on(eng.Socket.eventPong).listen((eng.Event event) => onPong());
+    engine.on(eng.Socket.eventError).listen((eng.Event event) => onError(event.args));
+    engine.on(eng.Socket.eventClose).listen((eng.Event event) => onClose(event.args));
+
+    decoder.onDecoded(onDecoded);
+    _packetEncoderSubscription ??= buffer$.listen(null);
 
     if (timeout >= 0) {
       final int timeout = this.timeout;
       log.d('connection attempt will timeout after $timeout');
 
-      final Timer timer = new Timer(new Duration(milliseconds: timeout), () async {
-        log.d('connect attempt timed out after $timeout');
-        openSub.destroy();
-        await engine.close();
-        await engine.emit(eng.SocketEvent.error, <Error>[new SocketIOException('timeout')]);
-        await _emitAll(ManagerEvent.connectTimeout, <int>[timeout]);
-      });
-
-      subscriptions.add(() {
-        timer.cancel();
-        return true;
-      });
+      _timeoutSubscription ??= new Observable<eng.Event>(_timeoutStream.stream)
+          .flatMap((eng.Event event) => new Observable<eng.Event>.timer(event, new Duration(milliseconds: timeout)))
+          .doOnData((eng.Event event) => log.d('connect attempt timed out after $timeout'))
+          .listen((eng.Event event) => connectTimeout());
     }
-
-    decoder.onDecoded(onDecoded);
-    subscriptions..add(openSub.destroy)..add(errorSub.destroy)..add(
-        new On(engine, eng.SocketEvent.data, (List<dynamic> args) async => decoder.add(args[0])).destroy);
-
-    await engine.open();
-
-    log.d('engine state: ${engine.readyState}');
-    return this;
   }
 
-  Future<Null> _onOpen() async {
-    log.d('_onOpen');
-
-    cleanUp();
-    readyState = ManagerState.OPEN;
-    await emit(ManagerEvent.open);
-    log.d('readyState: $readyState');
-
-    subscriptions..add(new On(engine, eng.SocketEvent.ping, (List<dynamic> args) async => await onPing(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.pong, (List<dynamic> args) async => await onPong(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.error, (List<dynamic> args) async => await onError(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.close, (List<dynamic> args) async => await onClose(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.data, (List<dynamic> args) {
-          log.d('data $args');
-          decoder.add(args[0]);
-        }).destroy);
-    decoder.onDecoded(onDecoded);
-  }
-
-  Future<Null> onPing(List<dynamic> _) async {
+  void onPing() {
     _lastPing = new DateTime.now();
-    await _emitAll(ManagerEvent.ping);
+    _emitAll(Manager.eventPing);
   }
 
-  Future<Null> onPong(List<dynamic> _) async {
-    await _emitAll(ManagerEvent.pong, <int>[_lastPing != null ? new DateTime.now()
-        .difference(_lastPing)
-        .inMilliseconds : 0
-    ]);
+  void onPong() {
+    _emitAll(Manager.eventPong, <int>[_lastPing != null ? new DateTime.now().difference(_lastPing).inMilliseconds : 0]);
   }
 
-  Future<Null> onDecoded(Packet packet) async => await emit(ManagerEvent.packet, <Packet>[packet]);
+  void onDecoded(Packet packet) => emit(Manager.eventPacket, <Packet>[packet]);
 
-  Future<Null> onError(List<dynamic> args) async {
-    log.d('error');
-    await _emitAll(ManagerEvent.error, args);
-    try {
-      throw args[0];
-    } catch (e) {
-      print(StackTrace.current.toString());
-    }
+  void onError(List<dynamic> args) {
+    log.d('onError');
+    _emitAll(Manager.eventError, args);
   }
 
   /// Initializes [Socket] instances for each namespaces.
   ///
-  /// @return a socket instance for the namespace.
+  /// return a [Socket] instance for the namespace.
   Socket socket(final String namespace, [ManagerOptions opts]) {
     log.d('socket namespace: $namespace');
     Socket socket = namespaces[namespace];
@@ -220,11 +215,13 @@ class Manager extends eng.Emitter {
       socket = new Socket(this, namespace, opts);
       namespaces[namespace] = socket;
 
-      socket..on(SocketEvent.connecting, (List<dynamic> args) {
-        log.d('connecting: $args');
+      socket.on(Socket.eventConnecting).listen((eng.Event event) {
+        log.d('connecting: ${event.args}');
         connecting.add(socket);
-      })..on(SocketEvent.connect, (List<dynamic> args) {
-        log.d('connect: $args');
+      });
+
+      socket.on(Socket.eventConnect).listen((eng.Event event) {
+        log.d('connect: ${event.args}');
         socket.id = generateId(namespace);
         log.d('socketId: ${socket.id}');
       });
@@ -232,120 +229,179 @@ class Manager extends eng.Emitter {
     return socket;
   }
 
-  Future<Null> destroy(Socket socket) async {
+  void destroy(Socket socket) {
     connecting.remove(socket);
     if (connecting.isNotEmpty) return;
-    await close();
+    close();
   }
 
-  Future<Null> packet(Packet packet) async {
+  void packet(Packet packet) {
     log.d('writing packet $packet');
-
-    final PacketBuilder builder = packet.toBuilder();
     if (packet.query != null && packet.query.isNotEmpty && packet.type == PacketType.connect) {
-      builder.namespace += '?${packet.query}';
+      packet = packet.copyWith(namespace: '${packet.namespace}?${packet.query}');
     }
-    packet = builder.build();
-    log.d('writing packet $packet');
 
-    if (!encoding) {
-      encoding = true;
-      for (dynamic value in encoder.encode(packet))
-        await engine.write(value);
-      encoding = false;
-      await _processPacketQueue();
-    } else {
-      packetBuffer.add(packet);
-    }
-  }
-
-  Future<Null> _processPacketQueue() async {
-    log.d('packetBuffer: $packetBuffer');
-    if (packetBuffer.isNotEmpty && !encoding) await packet(packetBuffer.removeAt(0));
+    _packetEncoderStream.add(packet);
   }
 
   void cleanUp() {
     log.d('cleanup');
+    engine.off();
+    _timeoutSubscription?.cancel();
+    _timeoutSubscription = null;
+    _packetEncoderSubscription?.cancel();
+    _packetEncoderSubscription = null;
 
-    subscriptions.removeWhere((OnDestroy onDestroy) => onDestroy());
     decoder.onDecoded(null);
-    packetBuffer.clear();
+
     encoding = false;
     _lastPing = null;
     decoder.destroy();
   }
 
-  Future<Null> close() async {
-    log.d('disconnect');
+  void close() {
+    log.d('close');
     _skipReconnect = true;
     _reconnecting = false;
     // [onClose] will not fire because an open event never happened
-    if (readyState != ManagerState.OPEN) cleanUp();
+    if (readyState != Manager.stateOpen) cleanUp();
 
     backoff.reset();
-    readyState = ManagerState.CLOSED;
-    await engine?.close();
+    readyState = Manager.stateClosed;
+    engine?.close();
   }
 
-  Future<Null> onClose(List<dynamic> reason) async {
+  void onClose(List<dynamic> reason) {
     log.d('onClose');
     cleanUp();
     backoff.reset();
-    readyState = ManagerState.CLOSED;
-    await emit(ManagerEvent.close, reason);
+    readyState = Manager.stateClosed;
+    emit(Manager.eventClose, reason);
 
-    if (_reconnection && !_skipReconnect) await reconnect();
+    if (options.reconnection && !_skipReconnect) reconnect();
   }
 
-  Future<Null> reconnect() async {
+  void reconnect() {
     if (_reconnecting || _skipReconnect) return;
 
-    if (backoff.attempts >= reconnectionAttempts) {
+    if (backoff.attempts >= options.reconnectionAttempts) {
       log.d('reconnect failed');
       backoff.reset();
-      await _emitAll(ManagerEvent.reconnectFailed);
+      _emitAll(Manager.eventReconnectFailed);
       _reconnecting = false;
     } else {
       final int delay = backoff.duration();
-      log.d('will wait $delay before reconnect attempt');
+      log.d('Will wait $delay before attempt to reconnect.');
 
       _reconnecting = true;
-      final Timer timer = new Timer(new Duration(milliseconds: delay), () async {
-        if (_skipReconnect) return;
-
-        log.d('attempting reconnect');
+      new Observable<int>.timer(delay, new Duration(milliseconds: delay))
+          .where((int _) => !_skipReconnect)
+          .doOnData((int _) => log.d('attempting reconnect'))
+          .flatMap((int i) {
         final int attempts = backoff.attempts;
-        await _emitAll(ManagerEvent.reconnectAttempt, <int>[attempts]);
-        await _emitAll(ManagerEvent.reconnecting, <int>[attempts]);
+        _emitAll(Manager.eventReconnectAttempt, <int>[attempts]);
+        _emitAll(Manager.eventReconnecting, <int>[attempts]);
 
-        // check again for the case socket closed in above events
-        if (_skipReconnect) return;
-
-        await open(listener: (List<dynamic> err) async {
-          if (err != null) {
-            log.d('reconnect attempt error');
-            _reconnecting = false;
-            await reconnect();
-            await _emitAll(ManagerEvent.reconnectError, err);
-          } else {
-            log.d('reconnect success');
-            await onReconnect();
-          }
-        });
-      });
-
-      subscriptions.add(() {
-        timer.cancel();
-        return true;
+        final Observable<eng.Event> openOnce = engine.once(eng.Socket.eventOpen);
+        open();
+        return openOnce;
+      }).listen((eng.Event event) {
+        if (event.args != null) {
+          log.d('reconnect attempt error');
+          _reconnecting = false;
+          reconnect();
+          _emitAll(Manager.eventReconnectError, event.args);
+        } else {
+          log.d('reconnect success');
+          onReconnect();
+        }
       });
     }
   }
 
-  Future<Null> onReconnect() async {
+  void onReconnect() {
+    log.d('onReconnect');
     final int attempts = backoff.attempts;
     _reconnecting = false;
     backoff.reset();
     _updateSocketIds();
-    await _emitAll(ManagerEvent.reconnect, <int>[attempts]);
+    _emitAll(Manager.eventReconnect, <int>[attempts]);
   }
+
+  @override
+  String toString() {
+    return (new eng.ToStringHelper('Manager')
+          ..add('namespaces', '$namespaces')
+          ..add('connecting', '$connecting')
+          ..add('_packetEncoderStream', '$_packetEncoderStream')
+          ..add('_timeoutStream', '$_timeoutStream')
+          ..add('_packetEncoderSubscription', '$_packetEncoderSubscription')
+          ..add('_timeoutSubscription', '$_timeoutSubscription')
+          ..add('engine', '$engine')
+          ..add('options', '$options')
+          ..add('backoff', '$backoff')
+          ..add('url', '$url')
+          ..add('encoding', '$encoding')
+          ..add('encoder', '$encoder')
+          ..add('decoder', '$decoder')
+          ..add('_reconnecting', '$_reconnecting')
+          ..add('_skipReconnect', '$_skipReconnect')
+          ..add('_reconnectionDelay', '$_reconnectionDelay')
+          ..add('_reconnectionDelayMax', '$_reconnectionDelayMax')
+          ..add('_randomizationFactor', '$_randomizationFactor')
+          ..add('timeout', '$timeout')
+          ..add('_lastPing', '$_lastPing'))
+        .toString();
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Manager &&
+          runtimeType == other.runtimeType &&
+          namespaces == other.namespaces &&
+          connecting == other.connecting &&
+          _packetEncoderStream == other._packetEncoderStream &&
+          _timeoutStream == other._timeoutStream &&
+          _packetEncoderSubscription == other._packetEncoderSubscription &&
+          _timeoutSubscription == other._timeoutSubscription &&
+          engine == other.engine &&
+          options == other.options &&
+          backoff == other.backoff &&
+          readyState == other.readyState &&
+          url == other.url &&
+          encoding == other.encoding &&
+          encoder == other.encoder &&
+          decoder == other.decoder &&
+          _reconnecting == other._reconnecting &&
+          _skipReconnect == other._skipReconnect &&
+          _reconnectionDelay == other._reconnectionDelay &&
+          _reconnectionDelayMax == other._reconnectionDelayMax &&
+          _randomizationFactor == other._randomizationFactor &&
+          timeout == other.timeout &&
+          _lastPing == other._lastPing;
+
+  @override
+  int get hashCode =>
+      namespaces.hashCode ^
+      connecting.hashCode ^
+      _packetEncoderStream.hashCode ^
+      _timeoutStream.hashCode ^
+      _packetEncoderSubscription.hashCode ^
+      _timeoutSubscription.hashCode ^
+      engine.hashCode ^
+      options.hashCode ^
+      backoff.hashCode ^
+      readyState.hashCode ^
+      url.hashCode ^
+      encoding.hashCode ^
+      encoder.hashCode ^
+      decoder.hashCode ^
+      _reconnecting.hashCode ^
+      _skipReconnect.hashCode ^
+      _reconnectionDelay.hashCode ^
+      _reconnectionDelayMax.hashCode ^
+      _randomizationFactor.hashCode ^
+      timeout.hashCode ^
+      _lastPing.hashCode;
 }

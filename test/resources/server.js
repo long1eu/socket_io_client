@@ -66,6 +66,7 @@ io.of(nsp).on('connection', function (socket) {
 
     socket.on('callAckBinary', function () {
         socket.emit('ack', function (buf) {
+            console.log('called from client ' + typeof buf);
             socket.emit('ackBack', buf);
         });
     });
@@ -77,6 +78,7 @@ io.of(nsp).on('connection', function (socket) {
     });
 
     socket.on('getAckDate', function (data, callback) {
+        console.log(typeof callback);
         callback(new Date());
     });
 

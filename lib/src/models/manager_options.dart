@@ -4,13 +4,13 @@ import 'package:engine_io_client/engine_io_client.dart' show Socket, SocketOptio
 import 'package:socket_io_client/src/parser/io_parser.dart';
 
 class ManagerOptions extends SocketOptions {
-  ManagerOptions({
-    this.timeout = 2000,
-    this.reconnection = true,
-    this.reconnectionAttempts = 0x3FFFFFFF,
-    this.reconnectionDelay = 1000,
-    this.reconnectionDelayMax = 5000,
-    this.randomizationFactor = 0.5,
+  const ManagerOptions({
+    int timeout,
+    bool reconnection,
+    int reconnectionAttempts,
+    int reconnectionDelay,
+    int reconnectionDelayMax,
+    double randomizationFactor,
     this.encoder,
     this.decoder,
     List<String> transports,
@@ -20,7 +20,7 @@ class ManagerOptions extends SocketOptions {
     String rawQuery,
     Map<String, TransportOptions> transportOptions,
     String hostname,
-    String path = '/socket.io',
+    String path,
     String timestampParam,
     bool secure,
     bool timestampRequests,
@@ -30,7 +30,13 @@ class ManagerOptions extends SocketOptions {
     Map<String, List<String>> headers,
     Socket socket,
     SecurityContext securityContext,
-  }) : super(
+  })  : timeout = timeout ?? 2000,
+        reconnection = reconnection ?? true,
+        reconnectionAttempts = reconnectionAttempts ?? 0x3FFFFFFF,
+        reconnectionDelay = reconnectionDelay ?? 1000,
+        reconnectionDelayMax = reconnectionDelayMax ?? 5000,
+        randomizationFactor = randomizationFactor ?? 0.5,
+        super(
             transports: transports,
             upgrade: upgrade,
             rememberUpgrade: rememberUpgrade,
@@ -38,7 +44,7 @@ class ManagerOptions extends SocketOptions {
             rawQuery: rawQuery,
             transportOptions: transportOptions,
             hostname: hostname,
-            path: path,
+            path: path ?? '/socket.io',
             timestampParam: timestampParam,
             secure: secure,
             timestampRequests: timestampRequests,
