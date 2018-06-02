@@ -50,26 +50,23 @@ class Socket extends eng.Emitter {
   StreamSubscription<Packet> _receiveSub;
   StreamSubscription<Packet> _sendSub;
 
-  final List<List<dynamic>> receiveBuffer = <List<dynamic>>[];
-  final List<Packet> sendBuffer = <Packet>[];
-
-  ///  A property on the socket instance that is equal to the underlying engine.io socket id.
+  /// A property on the socket instance that is equal to the underlying engine.io socket id.
+  ///
+  /// The value is present once the socket has connected, is removed when the socket disconnects
+  /// and is updated if the socket reconnects.
   String id;
+
   bool connected = false;
   int ids = 0;
   String namespace;
   Manager io;
   String query;
-  Map<int, StreamController<dynamic>> acks = <int, StreamController<dynamic>>{};
+  Map<int, StreamController<List<dynamic>>> acks = <int, StreamController<List<dynamic>>>{};
 
-  Socket(this.io, this.namespace, ManagerOptions opts) : query = opts?.rawQuery {
-    io.on(Manager.eventOpen).listen((eng.Event event) => onOpen());
-    io.on(Manager.eventPacket).listen((eng.Event event) => onPacket(event.args[0]));
-    io.on(Manager.eventClose).listen((eng.Event event) => onClose(event.args.isEmpty ? null : event.args[0]));
-  }
+  Socket(this.io, this.namespace, ManagerOptions opts) : query = opts?.rawQuery;
 
   Observable<Packet> get _send$ => new Observable<Packet>(_sendController.stream)
-      .bufferTest((Packet packet) => connected)
+      .bufferTest((Packet _) => connected)
       .expand((_) => _)
       .forEach((Packet p) => packet(p))
       .asObservable();
@@ -86,11 +83,24 @@ class Socket extends eng.Emitter {
     log.d('open: $connected');
     if (connected) return;
 
-    io.once(Manager.eventOpen).doOnData((eng.Event _) => log.d('readyState: ${io.readyState}')).listen((eng.Event event) {
-      if (io.readyState == Manager.stateOpen) onOpen();
-      emit(Socket.eventConnecting);
-    });
-    io.open();
+    io.on(Manager.eventOpen).listen((eng.Event event) => onOpen());
+    io.on(Manager.eventPacket).listen((eng.Event event) => onPacket(event.args[0]));
+    io.on(Manager.eventClose).listen((eng.Event event) => onClose(event.args.isEmpty ? null : event.args[0]));
+
+    if (io.readyState == Manager.stateOpen || io.readyState == Manager.stateOpening) {
+      _connecting();
+    } else {
+      io.open().where((eng.Event event) => event.name == eng.Socket.eventOpen).listen((eng.Event event) => _connecting());
+    }
+  }
+
+  void _connecting() {
+    log.d('socket $namespace is open, manager state is ${io.readyState}');
+    io.connecting.add(this);
+    emit(Socket.eventConnecting);
+    if (io.readyState == Manager.stateOpen) {
+      onOpen();
+    }
   }
 
   /// Connects the socket.
@@ -100,7 +110,8 @@ class Socket extends eng.Emitter {
   ///
   /// [args] data to send;
   /// return a reference of this object.
-  void send(dynamic args) {
+  void send(List<dynamic> args) {
+    log.d(connected);
     emit(Socket.eventMessage, args);
   }
 
@@ -108,9 +119,10 @@ class Socket extends eng.Emitter {
   ///
   /// [event] the name if the event
   /// [args] data to be sent
-  /// returns a Stream that will receive the ack event and then close.
+  /// returns a [Stream] that will receive the ack event and then close is [receiveAck] is true, else it will return an empty
+  /// [Stream].
   @override
-  Observable<dynamic> emit(String event, [List<dynamic> args = const <dynamic>[], bool receiveAck = false]) {
+  Observable<List<dynamic>> emit(String event, [List<dynamic> args = const <dynamic>[], bool receiveAck = false]) {
     log.d('emit with: event:$event, args:$args');
     if (Socket.eventValues.contains(event)) {
       super.emit(event, args);
@@ -123,20 +135,23 @@ class Socket extends eng.Emitter {
     Packet packet = new Packet(type: PacketType.event, data: list);
 
     int id;
-    if (receiveAck != null) {
+    // ignore: close_sinks
+    StreamController<List<dynamic>> streamController;
+    if (receiveAck) {
       id = ids++;
       log.d('emitting packet with ack id $id');
-      acks[id] = new StreamController<dynamic>();
+      streamController = new StreamController<List<dynamic>>();
+      acks[id] = streamController;
       packet = packet.copyWith(id: id);
     }
-    log.d('emitAck id: $id connected: $connected packet: $packet');
+    log.d('emit id: $id connected: $connected packet: $packet');
 
     _sendController.add(packet);
 
     if (id != null) {
-      return new Observable<dynamic>(acks[id].stream);
+      return new Observable<List<dynamic>>(streamController.stream);
     } else {
-      return new Observable<dynamic>.empty();
+      return new Observable<List<dynamic>>.empty();
     }
   }
 
@@ -144,14 +159,15 @@ class Socket extends eng.Emitter {
 
   void onOpen() {
     log.d('transport is open - connecting');
+    log.d('namespace: $namespace');
 
     _sendSub ??= _send$.listen(null);
     _receiveSub ??= _receive$.listen(null);
 
     if (namespace != '/') {
-      Packet p = const Packet(type: PacketType.connect);
-      if (query != null && query.isNotEmpty) p = p.copyWith(query: query);
-      packet(p);
+      Packet connectPacket = const Packet(type: PacketType.connect);
+      if (query != null && query.isNotEmpty) connectPacket = connectPacket.copyWith(query: query);
+      packet(connectPacket);
     }
   }
 
@@ -165,11 +181,13 @@ class Socket extends eng.Emitter {
   void onPacket(Packet packet) {
     log.d('onPacket: $packet');
 
-    if (packet.namespace != namespace) return;
+    if (packet.namespace != namespace) {
+      return;
+    }
 
     switch (packet.type) {
       case PacketType.connect:
-        onConnect();
+        _onConnect();
         break;
 
       case PacketType.event:
@@ -179,11 +197,11 @@ class Socket extends eng.Emitter {
 
       case PacketType.ack:
       case PacketType.binaryAck:
-        onAck(packet);
+        _onAck(packet);
         break;
 
       case PacketType.disconnect:
-        onDisconnect();
+        _onDisconnect();
         break;
 
       case PacketType.error:
@@ -198,17 +216,15 @@ class Socket extends eng.Emitter {
 
     if (packet.id >= 0) {
       log.d('attaching ack callback to event');
-      final Ack a = ack(packet.id);
-      args.add(a);
+      args.add(_ack(packet.id));
     }
 
     _receiveController.add(args);
   }
 
-  Function ack(int id) {
+  Function _ack(int id) {
     bool sent = false;
-    return ([List<dynamic> args]) {
-      args ??= const <dynamic>[];
+    return ([List<dynamic> args = const <dynamic>[]]) {
       if (sent) return;
       sent = true;
       log.d('sending ack $args');
@@ -217,32 +233,32 @@ class Socket extends eng.Emitter {
     };
   }
 
-  void onAck(Packet packet) {
-    final StreamController<dynamic> ack = acks.remove(packet.id);
+  void _onAck(Packet packet) {
+    final StreamController<List<dynamic>> ack = acks.remove(packet.id);
     log.w('onAck: $ack');
     if (ack != null) {
-      log.d('calling ack ${packet.id} with ${packet.data}');
-      ack.add(packet.data);
+      log.d('calling ack ${packet.id} with ${packet.data}/${packet.data.runtimeType}');
+      ack.add(packet.data is List ? packet.data : <dynamic>[packet.data]);
       ack.close();
     } else {
       log.d('bad ack ${packet.id}');
     }
   }
 
-  void onConnect() {
-    log.d('onConnect');
+  void _onConnect() {
+    log.d('onConnect $namespace');
     connected = true;
 
     emit(Socket.eventConnect);
   }
 
-  void onDisconnect() {
+  void _onDisconnect() {
     log.d('server disconnect ($namespace)');
-    destroy();
+    _destroy();
     onClose('io server disconnect');
   }
 
-  void destroy() {
+  void _destroy() {
     _receiveSub?.cancel();
     _receiveSub = null;
     _sendSub?.cancel();
@@ -257,10 +273,25 @@ class Socket extends eng.Emitter {
       log.d('performing disconnect ($namespace)');
       packet(const Packet(type: PacketType.disconnect));
     }
-    destroy();
-    if (connected) onClose('io client disconnect');
+    _destroy();
+    if (connected) {
+      onClose('io client disconnect');
+    }
   }
 
   /// Disconnects the socket.
   void disconnect() => close();
+
+  @override
+  String toString() {
+    return (new eng.ToStringHelper(log.tag)
+          ..add('id', '$id')
+          ..add('connected', '$connected')
+          ..add('ids', '$ids')
+          ..add('namespace', '$namespace')
+          ..add('io', '$io')
+          ..add('query', '$query')
+          ..add('acks', '$acks'))
+        .toString();
+  }
 }

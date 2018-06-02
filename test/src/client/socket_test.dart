@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:engine_io_client/engine_io_client.dart' as eng;
 import 'package:socket_io_client/src/client/socket.dart';
 import 'package:socket_io_client/src/models/manager_options.dart';
-import 'package:socket_io_client/src/models/socket_event.dart';
 import 'package:test/test.dart';
 
 import 'connection.dart';
@@ -16,13 +15,12 @@ void main() {
 
     final Socket socket = Connection.client();
 
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        values.add(socket.id);
-      });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      values.add(socket.id);
+    });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
@@ -34,13 +32,12 @@ void main() {
 
     final Socket socket = Connection.client(path: '/foo');
 
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        values.add(socket.id);
-      });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      values.add(socket.id);
+    });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
@@ -52,17 +49,15 @@ void main() {
 
     final Socket socket = Connection.client();
 
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        socket.on(Socket.eventDisconnect, (List<dynamic> args) {
-          values.add(socket.id);
-        });
-
-        await socket.disconnect();
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.on(Socket.eventDisconnect).listen((eng.Event event) {
+        values.add(socket.id);
       });
+      socket.disconnect();
+    });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
@@ -72,21 +67,18 @@ void main() {
   test('doesNotFireConnectErrorIfWeForceDisconnectInOpeningState', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b..timeout = 100;
-    });
+    const ManagerOptions options = const ManagerOptions(timeout: 100);
 
     final Socket socket = Connection.client(options: options);
 
-    socket
-      ..on(Socket.eventConnectError, (List<dynamic> args) async {
-        log.d('connect: $args');
-        socket.on(Socket.eventDisconnect, (List<dynamic> args) {
-          values.add(new StateError('Unexpected'));
-        });
+    socket.on(Socket.eventConnectError).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.on(Socket.eventDisconnect).listen((eng.Event event) {
+        values.add(new StateError('Unexpected'));
       });
-    await socket.connect();
-    await socket.disconnect();
+    });
+    socket.connect();
+    socket.disconnect();
 
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {
       values.add('done');
@@ -101,23 +93,21 @@ void main() {
 
     final Socket socket = Connection.client();
 
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        bool pinged = false;
-        socket
-          ..once(Socket.eventPing, (List<dynamic> args) {
-            log.d('ping: $args');
-            pinged = true;
-          })
-          ..once(Socket.eventPong, (List<dynamic> args) {
-            log.d('pong: $args');
-            final int ms = args[0];
-            values.add(pinged);
-            values.add(ms);
-          });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      bool pinged = false;
+      socket.once(Socket.eventPing).listen((eng.Event event) {
+        log.d('ping: ${event.args}');
+        pinged = true;
       });
-    await socket.connect();
+      socket.once(Socket.eventPong).listen((eng.Event event) {
+        log.d('pong: ${event.args}');
+        final int ms = event.args[0];
+        values.add(pinged);
+        values.add(ms);
+      });
+    });
+    socket.connect();
 
     await new Future<Null>.delayed(const Duration(milliseconds: 4000), () {});
     log.d(values.toString());
@@ -130,22 +120,20 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      values.add(socket.id);
+
+      socket.on(Socket.eventReconnectAttempt).listen((eng.Event event) {
         values.add(socket.id);
-
-        socket
-          ..on(Socket.eventReconnectAttempt, (List<dynamic> args) {
-            values.add(socket.id);
-          })
-          ..on(Socket.eventReconnect, (List<dynamic> args) {
-            values.add(socket.id);
-          });
-
-        await socket.io.engine.close();
       });
-    await socket.connect();
+      socket.on(Socket.eventReconnect).listen((eng.Event event) {
+        values.add(socket.id);
+      });
+
+      socket.io.engine.close();
+    });
+    socket.connect();
 
     await new Future<Null>.delayed(const Duration(milliseconds: 2000), () {});
     log.d(values.toString());
@@ -158,15 +146,13 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client(path: '/?c=d');
-    await socket.emit('getHandshake', <Ack>[
-      ([List<dynamic> args]) {
-        values.add(args[0]);
-      }
-    ]);
-    await socket.connect();
+    socket.emit('getHandshake', <dynamic>[], true).listen(([List<dynamic> args]) {
+      values.add(args[0]);
+    });
+    socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
-    log.d(values.toString());
+    await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
+    log.e(values.toString());
 
     expect(values[0]['query']['c'] == 'd', isTrue);
   });
@@ -175,11 +161,11 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client(path: '/abc?b=c&d=e');
-    socket.on('handshake', (List<dynamic> args) {
-      log.d('handshake: $args');
-      values.add(args[0]);
+    socket.on('handshake').listen((eng.Event event) {
+      log.d('handshake: ${event.args}');
+      values.add(event.args[0]);
     });
-    await socket.connect();
+    socket.connect();
 
     await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());

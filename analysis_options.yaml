@@ -29,6 +29,7 @@ analyzer:
     warningsAreFatal: true
     enableStrictCallChecks: true
     implicit-dynamic: false
+    implicit-cast: false
     showSdkWarnings: true
   errors:
     # treat missing required parameters as a warning (not a hint)

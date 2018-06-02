@@ -22,7 +22,7 @@ io.of('/foo').on('connection', function () {
     // register namespace
 });
 
-io.of('/timeout_socket').on('connection', function () {
+io.of('/timeout').on('connection', function () {
     // register namespace
 });
 
@@ -47,7 +47,9 @@ io.of(nsp).on('connection', function (socket) {
     });
 
     socket.on('echo', function () {
+        console.error('echo');
         var args = slice.call(arguments);
+        console.log('echo ' + JSON.stringify(arguments | ""));
         socket.emit.apply(socket, ['echoBack'].concat(args));
     });
 
@@ -66,7 +68,7 @@ io.of(nsp).on('connection', function (socket) {
 
     socket.on('callAckBinary', function () {
         socket.emit('ack', function (buf) {
-            console.log('called from client ' + typeof buf);
+            console.log('called from client ' + buf.toString());
             socket.emit('ackBack', buf);
         });
     });
@@ -79,7 +81,8 @@ io.of(nsp).on('connection', function (socket) {
 
     socket.on('getAckDate', function (data, callback) {
         console.log(typeof callback);
-        callback(new Date());
+        if (callback !== undefined)
+            callback(new Date());
     });
 
     socket.on('broadcast', function (data) {
@@ -105,6 +108,7 @@ io.of(nsp).on('connection', function (socket) {
     });
 
     socket.on('getHandshake', function (cb) {
+        console.log('getHandshake');
         cb(socket.handshake);
     });
 });

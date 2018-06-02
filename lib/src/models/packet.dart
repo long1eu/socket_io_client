@@ -16,7 +16,7 @@ class Packet {
 
   final String query;
 
-  static Packet parserError = new Packet(type: PacketType.error, data: 'parser error');
+  static const Packet parserError = const Packet(type: PacketType.error, data: 'parser error');
 
   Packet copyWith({
     PacketType type,

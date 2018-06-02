@@ -6,27 +6,27 @@ import 'helpers.dart';
 
 void main() {
   test('encodeConnection', () {
-    final Packet packet = new Packet(type: PacketType.connect, namespace: '/woot');
+    const Packet packet = const Packet(type: PacketType.connect, namespace: '/woot');
 
     Helpers.test(packet);
   });
 
   test('encodeDisconnection', () {
-    final Packet packet = new Packet(type: PacketType.disconnect, namespace: '/woot');
+    const Packet packet = const Packet(type: PacketType.disconnect, namespace: '/woot');
     Helpers.test(packet);
   });
 
   //this gives a false negative
   test('encodeEvent', () {
-    Packet packet = new Packet(
+    Packet packet = const Packet(
       type: PacketType.event,
-      data: <dynamic>['a', 1, <String, dynamic>{}],
+      data: const <dynamic>['a', 1, <String, dynamic>{}],
       namespace: '/',
     );
 
     Helpers.test(packet);
 
-    packet = new Packet(
+    packet = const Packet(
       type: PacketType.event,
       data: <dynamic>['a', 1, <String, dynamic>{}],
       namespace: '/test',
@@ -36,7 +36,7 @@ void main() {
   });
 
   test('encodeAck', () {
-    final Packet packet = new Packet(
+    const Packet packet = const Packet(
       id: 123,
       type: PacketType.ack,
       namespace: '/',

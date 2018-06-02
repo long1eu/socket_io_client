@@ -48,9 +48,12 @@ class IoEncoder implements Encoder {
     }
 
     if (packet.data != null) {
-      log.d('json: ${packet.data.runtimeType} ');
+      log.d('json: ${packet.data}');
 
       str.write(json.encode(packet.data, toEncodable: (dynamic object) {
+        if (object is DateTime) {
+          return object.toIso8601String();
+        }
         log.w('toEncodable was called with object: $object of type: ${object.runtimeType}');
         return object.toString();
       }));
@@ -70,7 +73,7 @@ class IoEncoder implements Encoder {
 
     buffers.insert(0, pack);
 
-    print('buffers: $buffers');
+    log.d('buffers: $buffers');
     return buffers;
   }
 }
@@ -151,7 +154,7 @@ class IoDecoder implements Decoder {
 
     if (length > i + 1) {
       final String next = string.substring(i + 1, i + 2);
-      final int value = int.parse(next, onError: (_) => -1);
+      final int value = int.tryParse(next) ?? -1;
 
       if (value > -1) {
         final StringBuffer id = new StringBuffer();
@@ -161,7 +164,7 @@ class IoDecoder implements Decoder {
           ++i;
 
           final String nextChar = string.substring(i, i + 1);
-          final int numericValue = int.parse(nextChar, onError: (_) => -1);
+          final int numericValue = int.tryParse(nextChar) ?? -1;
 
           if (numericValue < 0) {
             --i;

@@ -1,11 +1,9 @@
 import 'dart:async';
 
-import 'package:built_collection/built_collection.dart';
 import 'package:engine_io_client/engine_io_client.dart' as eng;
+import 'package:socket_io_client/src/client/manager.dart';
 import 'package:socket_io_client/src/client/socket.dart';
-import 'package:socket_io_client/src/models/manager_event.dart';
 import 'package:socket_io_client/src/models/manager_options.dart';
-import 'package:socket_io_client/src/models/socket_event.dart';
 import 'package:test/test.dart';
 
 import 'connection.dart';
@@ -17,18 +15,17 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        values.add(args);
-        await socket.disconnect();
-      })
-      ..on(Socket.eventDisconnect, (List<dynamic> args) {
-        log.d('disconnect $args');
-        values.add(args);
-      });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      values.add(event.args);
+      socket.disconnect();
+    });
+    socket.on(Socket.eventDisconnect).listen((eng.Event event) {
+      log.d('disconnect ${event.args}');
+      values.add(event.args);
+    });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
@@ -42,24 +39,21 @@ void main() {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        await socket.send(<String>['foo', 'bar']);
-      })
-      ..on(Socket.eventMessage, (List<dynamic> args) {
-        log.d('message: $args');
-        values.add(args);
-      });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.send(<String>['foo', 'bar']);
+    });
+    socket.on(Socket.eventMessage).listen((eng.Event event) {
+      log.d('message: ${event.args}');
+      values.add(event.args);
+    });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());
 
-    expect(values[0], <String>['hello client']);
-    expect(values[1], <String>['foo', 'bar']);
-
-    await socket.disconnect();
+    expect(values[0], <String>['foo', 'bar']);
+    expect(values[1], <String>['hello client']);
   });
 
   test('event', () async {
@@ -67,17 +61,16 @@ void main() {
 
     final Map<String, dynamic> foo = <String, dynamic>{'foo': 1};
     final Socket socket = Connection.client();
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        await socket.emit('echo', <dynamic>[foo, null, 'bar']);
-      })
-      ..on('echoBack', (List<dynamic> args) {
-        log.d('message: $args');
-        values.add(args);
-      });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.emit('echo', <dynamic>[foo, null, 'bar']);
+    });
+    socket.on('echoBack').listen((eng.Event event) {
+      log.d('message: ${event.args}');
+      values.add(event.args);
+    });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());
 
@@ -85,8 +78,6 @@ void main() {
     expect(values[0][0], foo);
     expect(values[0][1], isNull);
     expect(values[0][2], 'bar');
-
-    await socket.disconnect();
   });
 
   test('ack', () async {
@@ -94,96 +85,82 @@ void main() {
 
     final Map<String, dynamic> foo = <String, dynamic>{'foo': 1};
     final Socket socket = Connection.client();
-    socket.on(Socket.eventConnect, (List<dynamic> args) async {
-      log.d('connect: $args');
-      await socket.emitAck(
-        'ack',
-        <dynamic>[foo, 'bar'],
-        ([List<dynamic> args]) async {
-          values.add(args);
-        },
-      );
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.emit('ack', <dynamic>[foo, 'bar'], true).listen(([List<dynamic> args]) => values.add(args));
     });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());
 
     expect(values[0].length, 2);
     expect(values[0][0], foo);
     expect(values[0][1], 'bar');
-
-    await socket.disconnect();
   });
 
   test('ackWithoutArgs', () async {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket.on(Socket.eventConnect, (List<dynamic> args) async {
-      log.d('connect: $args');
-      await socket.emitAck('ack', null, ([List<dynamic> args]) async {
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.emit('ack', null, true).listen(([List<dynamic> args]) {
         values.add(args.length);
       });
     });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());
 
     expect(values[0], 0);
 
-    await socket.disconnect();
+    socket.disconnect();
   });
 
   test('ackWithoutArgsFromClient', () async {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket.on(Socket.eventConnect, (List<dynamic> args) async {
-      log.d('connect: $args');
-      socket
-        ..on('ack', (List<dynamic> args) async {
-          values.add(args);
-          await args[0]();
-        })
-        ..on('ackBack', (List<dynamic> args) async {
-          values.add(args);
-          await socket.disconnect();
-        });
-      await socket.emit('callAck');
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.on('ack').listen((eng.Event event) async {
+        values.add(event.args);
+        await event.args[0]();
+      });
+      socket.on('ackBack').listen((eng.Event event) {
+        values.add(event.args);
+      });
+      socket.emit('callAck');
     });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());
 
     expect(values[0].length, 1);
     expect(values[0][0] is Ack, isTrue);
     expect(values[1].length, 0);
-
-    await socket.disconnect();
   });
 
   test('closeEngineConnection', () async {
     final List<dynamic> values = <dynamic>[];
 
     final Socket socket = Connection.client();
-    socket.on(Socket.eventConnect, (List<dynamic> args) async {
-      log.d('connect: $args');
-      socket.io.engine.on(eng.SocketEvent.close, (List<dynamic> args) {
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.io.engine.on(eng.Socket.eventClose).listen((eng.Event event) {
         values.add('done');
       });
-      await socket.disconnect();
+      socket.disconnect();
     });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());
 
     expect(values[0], 'done');
-
-    await socket.disconnect();
   });
 
   test('broadcast', () async {
@@ -191,30 +168,27 @@ void main() {
 
     final Socket socket1 = Connection.client();
     Socket socket2;
-    socket1
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        socket2 = Connection.client(forceNew: true);
+    socket1.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket2 = Connection.client(forceNew: true);
 
-        socket2.on(Socket.eventConnect, (List<dynamic> args) async {
-          log.d('connect2: $args');
-          await socket2.emit('broadcast', <String>['hi']);
-        });
-
-        await socket2.connect();
-      })
-      ..on('broadcastBack', (List<dynamic> args) {
-        values.add(args);
+      socket2.on(Socket.eventConnect).listen((eng.Event event) {
+        log.d('connect2: ${event.args}');
+        socket2.emit('broadcast', <String>['hi']);
       });
 
-    await socket1.connect();
+      socket2.connect();
+    });
+    socket1.on('broadcastBack').listen((eng.Event event) {
+      values.add(event.args);
+    });
+
+    socket1.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0].length, 1);
     expect(values[0][0], 'hi');
-
-    await socket1.disconnect();
   });
 
   test('room', () async {
@@ -222,59 +196,51 @@ void main() {
 
     final Socket socket = Connection.client();
 
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        await socket.emit('room', <String>['hi']);
-      })
-      ..on('roomBack', (List<dynamic> args) {
-        values.add(args);
-      });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.emit('room', <String>['hi']);
+    });
+    socket.on('roomBack').listen((eng.Event event) {
+      values.add(event.args);
+    });
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0].length, 1);
     expect(values[0][0], 'hi');
-
-    await socket.disconnect();
   });
 
   test('pollingHeaders', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..options = (new eng.SocketOptions().toBuilder()
-          ..transports = new ListBuilder<String>(<String>[eng.Polling.NAME])
-          ..path = '/socket.io');
-    });
+    const ManagerOptions options = const ManagerOptions(
+      transports: const <String>[eng.Polling.NAME],
+      path: '/socket.io',
+      headers: const <String, List<String>>{
+        'X-SocketIO': const <String>['hi']
+      },
+    );
 
     final Socket socket = Connection.client(options: options);
 
-    socket.io.on(Manager.eventTransport, (List<dynamic> args) {
-      log.d('transport $args');
-      final eng.Transport transport = args[0];
-      transport
-        ..on(eng.TransportEvent.requestHeaders, (List<dynamic> args) {
-          log.d('requestHeaders $args');
-          final Map<String, List<String>> headers = args[0];
-          headers['X-SocketIO'] = <String>['hi'];
-        })
-        ..on(eng.TransportEvent.responseHeaders, (List<dynamic> args) {
-          log.d('responseHeaders $args');
-          final Map<String, List<String>> headers = args[0];
-          final List<String> value = headers['X-SocketIO'.toLowerCase()];
-          values.add(value != null ? value[0] : '');
-        });
+    socket.io.on(Manager.eventTransport).listen((eng.Event event) {
+      log.d('transport ${event.args}');
+      final eng.Transport transport = event.args[0];
+
+      transport.once(eng.Transport.eventResponseHeaders).listen((eng.Event event) {
+        log.d('responseHeaders ${event.args}');
+        final Map<String, List<String>> headers = event.args[0];
+        final List<String> value = headers['X-SocketIO'.toLowerCase()];
+        values.add(value != null ? value[0] : '');
+      });
     });
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0], 'hi');
-    await socket.disconnect();
   });
 
   test('disconnectFromServer', () async {
@@ -282,16 +248,13 @@ void main() {
 
     final Socket socket = Connection.client();
 
-    socket
-      ..on(Socket.eventConnect, (List<dynamic> args) async {
-        log.d('connect: $args');
-        await socket.emit('requestDisconnect');
-      })
-      ..on(Socket.eventDisconnect, (List<dynamic> args) {
-        values.add('disconnected');
-      });
+    socket.on(Socket.eventConnect).listen((eng.Event event) {
+      log.d('connect: ${event.args}');
+      socket.emit('requestDisconnect');
+    });
+    socket.on(Socket.eventDisconnect).listen((eng.Event event) => values.add('disconnected'));
 
-    await socket.connect();
+    socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
