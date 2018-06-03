@@ -8,3 +8,4 @@ export 'src/client/manager.dart';
 export 'src/client/socket.dart';
 export 'src/client/socket_io_error.dart';
 export 'src/models/manager_options.dart';
+export 'src/models/packet.dart';
