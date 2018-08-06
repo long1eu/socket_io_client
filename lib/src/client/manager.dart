@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:engine_io_client/engine_io_client.dart' as eng;
+import 'package:engine_io_client/src/logger.dart';
 import 'package:meta/meta.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:socket_io_client/src/backoff/backoff.dart';
@@ -32,7 +33,7 @@ class Manager extends eng.Emitter {
   static const String stateOpening = 'opening';
   static const String stateOpen = 'open';
 
-  static final eng.Log log = new eng.Log('SocketIo.Manager');
+  static final Log log = new Log('SocketIo.Manager');
 
   Map<String, Socket> namespaces = <String, Socket>{};
   HashSet<Socket> connecting = new HashSet<Socket>();
@@ -137,7 +138,7 @@ class Manager extends eng.Emitter {
       return new Observable<eng.Event>.just(new eng.Event(eng.Socket.eventOpen));
     }
 
-    log.d('opening $_url');
+    log.d('opening $_url with options: ${new eng.SocketOptions.fromUri(_url, options)}');
     engine = new eng.Socket(new eng.SocketOptions.fromUri(_url, options));
 
     readyState = Manager.stateOpening;
@@ -358,7 +359,7 @@ class Manager extends eng.Emitter {
 
   @override
   String toString() {
-    return (new eng.ToStringHelper('Manager')
+    return (new ToStringHelper('Manager')
           ..add('namespaces', '$namespaces')
           ..add('connecting', '$connecting')
           ..add('engine', '$engine')

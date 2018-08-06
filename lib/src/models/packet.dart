@@ -1,4 +1,4 @@
-import 'package:engine_io_client/engine_io_client.dart';
+import 'package:engine_io_client/src/logger.dart';
 import 'package:socket_io_client/src/models/packet_type.dart';
 
 class Packet {

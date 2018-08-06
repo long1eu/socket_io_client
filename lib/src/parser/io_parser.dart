@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:engine_io_client/engine_io_client.dart' show Log;
+import 'package:engine_io_client/src/logger.dart';
 import 'package:socket_io_client/src/models/deconstructed_packet.dart';
 import 'package:socket_io_client/src/models/packet.dart';
 import 'package:socket_io_client/src/models/packet_type.dart';

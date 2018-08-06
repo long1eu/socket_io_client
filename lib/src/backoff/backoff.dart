@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:engine_io_client/engine_io_client.dart';
+import 'package:engine_io_client/src/logger.dart';
 
 class Backoff {
   int ms = 100;

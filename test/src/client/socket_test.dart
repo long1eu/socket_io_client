@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:engine_io_client/engine_io_client.dart' as eng;
+import 'package:engine_io_client/src/logger.dart';
 import 'package:socket_io_client/src/client/socket.dart';
 import 'package:socket_io_client/src/models/manager_options.dart';
 import 'package:test/test.dart';
@@ -8,7 +9,7 @@ import 'package:test/test.dart';
 import 'connection.dart';
 
 void main() {
-  final eng.Log log = new eng.Log('socket_test');
+  final Log log = new Log('socket_test');
 
   test('shouldHaveAnAccessibleSocketIdEqualToServerSideSocketId', () async {
     final List<dynamic> values = <dynamic>[];

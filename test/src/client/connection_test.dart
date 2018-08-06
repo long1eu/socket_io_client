@@ -1,19 +1,34 @@
-import 'dart:async';
-
-import 'package:engine_io_client/engine_io_client.dart' show Log;
+import 'package:cookie_jar/cookie_jar.dart';
+import 'package:engine_io_client/engine_io_client.dart' show  WebSocket;
 import 'package:rxdart/rxdart.dart';
 import 'package:socket_io_client/socket_io_client.dart';
 import 'package:socket_io_client/src/client/socket.dart';
 import 'package:test/test.dart';
-import 'package:utf/utf.dart';
-
-import 'connection.dart';
-
+import 'package:engine_io_client/src/logger.dart';
 void main() {
   final Log log = new Log('Socket.Io.connection_test');
 
   test('connectionToLocalHost', () async {
-    final Socket socket = Connection.client(path: '/');
+    // final Socket socket = Connection.client(path: '/');
+
+    PersistCookieJar cookieJar = new PersistCookieJar('/Users/long1eu/Desktop/.cookies');
+
+    final Socket socket = new Manager(
+      url: 'wss://ophelia.private.qwil.network/chat',
+      options: new ManagerOptions(
+        transports: const <String>[WebSocket.NAME],
+        reconnection: false,
+        timeout: 3000,
+        query: <String, String>{
+          'X-XSRF-TOKEN':
+              'x7nqjcNuBpzGoANRFSOo53AGsanqBLQxQkMWseZMVPZVDijIVKcaweemOjNzvMATzvp41fFCy8ix9NqIp4I2DlgkkPMC75HZ5NNNZnoYdHhMzrHmNQ0fXF2bWlgolWIZQMx0WhNdq7PhfH91MOtFISjwToXOTR1xklkXqBEhssp2jGwJb2UZ2VUhThUVyXaBLJsd7J1tFQAVO0eTqqux4erAml7a3NhcHaN7k0qC98WxJse8nqg3VjFGfRSpKwBu34ud7JZkMTnT8p61ncgQK618Sg8v1rLdoeQl2O8oNH1B4iCJdg5BRgGLw8yNaXEtP6j26vVSGCXoy6YNv9JH5V2CaAGmp1mQiFySnUP7r90L3fvVeUt6yHnhl6O4AnopFeskUv9o6RVoVaidPVVW6LlLcj6vWAK41ONtyPST1SGXmJvP6YzpCTiRhNL5wgvW6meIoLKBYdrQWo0eNDsvyPmYa3OTPrPHxQRVSZykqVitH7yI6YA2',
+          'EUXU': '00140b31-823e-4d0b-ba32-0395a8986c0a',
+        },
+        port: 443,
+        path: '/deployment-254/region/socket.io',
+        cookieJar: cookieJar,
+      ),
+    ).socket('/chat');
 
     final Observable<Event> event$ = socket.on('echoBack').map((Event event) => new Event(event.name));
     socket
@@ -26,6 +41,7 @@ void main() {
     expect(event$, emits(new Event('echoBack')));
   });
 
+/*
   test('startTwoConnectionsWithSamePath', () async {
     final Socket socket1 = Connection.client(path: '/');
     final Socket socket2 = Connection.client(path: '/');
@@ -629,5 +645,5 @@ void main() {
 
     expect(values[0], buffer);
     expect(values[1], 'please arrive second');
-  });
+  });*/
 }

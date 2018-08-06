@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:engine_io_client/engine_io_client.dart' as eng;
+import 'package:engine_io_client/src/logger.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:socket_io_client/src/client/manager.dart';
 import 'package:socket_io_client/src/models/manager_options.dart';
@@ -42,13 +43,13 @@ class Socket extends eng.Emitter {
     eventPong
   ];
 
-  static final eng.Log log = new eng.Log('SocketIo.Socket');
+  static final Log log = new Log('SocketIo.Socket');
 
   final StreamController<List<dynamic>> _receiveController = new StreamController<List<dynamic>>.broadcast();
   final StreamController<Packet> _sendController = new StreamController<Packet>.broadcast();
 
-  StreamSubscription<Packet> _receiveSub;
-  StreamSubscription<Packet> _sendSub;
+  StreamSubscription<void> _receiveSub;
+  StreamSubscription<void> _sendSub;
 
   /// A property on the socket instance that is equal to the underlying engine.io socket id.
   ///
@@ -65,13 +66,13 @@ class Socket extends eng.Emitter {
 
   Socket(this.io, this.namespace, ManagerOptions opts) : query = opts?.rawQuery;
 
-  Observable<Packet> get _send$ => new Observable<Packet>(_sendController.stream)
+  Observable<void> get _send$ => new Observable<Packet>(_sendController.stream)
       .bufferTest((Packet _) => connected)
       .expand((_) => _)
       .forEach((Packet p) => packet(p))
       .asObservable();
 
-  Observable<Packet> get _receive$ => new Observable<List<dynamic>>(_receiveController.stream)
+  Observable<void> get _receive$ => new Observable<List<dynamic>>(_receiveController.stream)
       .where((List<dynamic> args) => args.isNotEmpty)
       .bufferTest((List<dynamic> _) => connected)
       .expand((_) => _)
@@ -126,7 +127,7 @@ class Socket extends eng.Emitter {
     log.d('emit with: event:$event, args:$args');
     if (Socket.eventValues.contains(event)) {
       super.emit(event, args);
-      return new Observable<dynamic>.empty();
+      return new Observable<List<dynamic>>.empty();
     }
 
     final List<dynamic> list = <dynamic>[event];
@@ -201,6 +202,7 @@ class Socket extends eng.Emitter {
         break;
 
       case PacketType.disconnect:
+        log.d('Received Packet.disconnect');
         _onDisconnect();
         break;
 
@@ -269,6 +271,7 @@ class Socket extends eng.Emitter {
 
   /// Disconnects the socket.
   void close() {
+    log.d('close method');
     if (connected) {
       log.d('performing disconnect ($namespace)');
       packet(const Packet(type: PacketType.disconnect));
@@ -284,7 +287,7 @@ class Socket extends eng.Emitter {
 
   @override
   String toString() {
-    return (new eng.ToStringHelper(log.tag)
+    return (new ToStringHelper(log.tag)
           ..add('id', '$id')
           ..add('connected', '$connected')
           ..add('ids', '$ids')

@@ -1,4 +1,4 @@
-import 'package:engine_io_client/engine_io_client.dart' show Log;
+import 'package:engine_io_client/src/logger.dart';
 import 'package:socket_io_client/src/client/manager.dart';
 import 'package:socket_io_client/src/client/socket.dart';
 import 'package:socket_io_client/src/client/url.dart';
