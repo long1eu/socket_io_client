@@ -4,6 +4,6 @@
 .idea
 .packages
 .pub/
+test/resources/node_modules/
+test/resources/node_modules/package-lock.json
 packages
-
-test/resources/node_modules
