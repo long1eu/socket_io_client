@@ -9,4 +9,5 @@ export 'src/client/socket_io_exception.dart';
 export 'src/models/manager_event.dart';
 export 'src/models/manager_options.dart';
 export 'src/models/manager_state.dart';
+export 'src/models/packet.dart';
 export 'src/models/socket_event.dart';
