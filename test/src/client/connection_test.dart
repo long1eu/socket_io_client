@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:engine_io_client/engine_io_client.dart' show Listener, Log, SocketOptions, SocketOptionsBuilder;
+import 'package:engine_io_client/engine_io_client.dart' show Log;
 import 'package:socket_io_client/socket_io_client.dart';
 import 'package:socket_io_client/src/client/manager.dart';
 import 'package:socket_io_client/src/client/socket.dart';
@@ -31,7 +31,7 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 20000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 20000), () {});
     log.d('values $values');
 
     expect(values[0], 'done');
@@ -76,7 +76,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d('aa $values');
     expect(values.isNotEmpty, isTrue);
     await socket.close();
@@ -87,7 +87,7 @@ void main() {
     final Socket socket = Connection.client();
     socket.on(SocketEvent.connect, (List<dynamic> args) async {
       log.d('connect');
-      await socket.emitAck('getAckDate', <Map>[
+      await socket.emitAck('getAckDate', <Map<String, dynamic>>[
         <String, bool>{'test': true}
       ], ([List<dynamic> args]) {
         values.add(args);
@@ -95,7 +95,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values.isNotEmpty, isTrue);
     await socket.close();
   });
@@ -120,7 +120,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], buff);
     await socket.close();
   });
@@ -139,7 +139,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], buff);
     await socket.close();
   });
@@ -158,7 +158,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], isFalse);
     await socket.close();
   });
@@ -179,7 +179,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d('result: ${values.toList()}');
     expect(values, correct);
     await socket.close();
@@ -204,7 +204,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], 'done');
     await socket.close();
   });
@@ -231,7 +231,7 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 2000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 2000), () {});
     expect(values[0], 'done');
     await socket.close();
   });
@@ -249,11 +249,11 @@ void main() {
         values.add('done');
       });
     await socket.connect();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () async {
-      await socket.io.engine.close();
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () async {
+      socket.io.engine.close();
       log.d('close done');
     });
-    await new Future<Null>.delayed(const Duration(milliseconds: 1500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 1500), () {});
 
     expect(values[0], 'done');
   });
@@ -274,7 +274,7 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 1000), () {});
 
     expect(values[0], 'done');
   });
@@ -293,14 +293,14 @@ void main() {
             values.add('done');
           });
         await socket.connect();
-        await new Future<Null>.delayed(const Duration(milliseconds: 500), () async {
-          await socket.io.engine.close();
+        await new Future<void>.delayed(const Duration(milliseconds: 500), () async {
+          socket.io.engine.close();
           log.d('close done');
         });
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 3000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 3000), () {});
 
     expect(values[0], 'done');
   });
@@ -330,7 +330,7 @@ void main() {
         await socket.connect();
       });
     await socket.connect();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], 2);
     await socket.close();
     await manager.close();
@@ -368,7 +368,7 @@ void main() {
       });
 
     await socket.connect();
-    await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 1000), () {});
     expect(reconnects, 3);
     expect(increasingDelay, isTrue);
     await socket.close();
@@ -385,12 +385,12 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () async {
-      await socket.io.engine.close();
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () async {
+      socket.io.engine.close();
       log.d('close done');
     });
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 2000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 2000), () {});
     expect(values[0], 'done');
     await socket.close();
   });
@@ -409,13 +409,13 @@ void main() {
           });
 
         await socket.disconnect();
-        await new Future<Null>.delayed(const Duration(milliseconds: 500), () async {
+        await new Future<void>.delayed(const Duration(milliseconds: 500), () async {
           values.add(true);
         });
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 5000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 5000), () {});
     expect(values[0], isTrue);
   });
 
@@ -432,13 +432,13 @@ void main() {
         });
 
         await socket.disconnect();
-        await new Future<Null>.delayed(const Duration(milliseconds: 500), () async {
+        await new Future<void>.delayed(const Duration(milliseconds: 500), () async {
           values.add(true);
         });
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 1000), () {});
     expect(values[0], isTrue);
   });
 
@@ -457,7 +457,7 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], 'done');
   });
 
@@ -474,7 +474,7 @@ void main() {
         values.add(false);
       });
       socket2.on(SocketEvent.connect, (List<dynamic> args) async {
-        await new Future<Null>.delayed(const Duration(milliseconds: 500), () async {
+        await new Future<void>.delayed(const Duration(milliseconds: 500), () async {
           await socket2.disconnect();
           await manager.close();
           values.add(true);
@@ -485,11 +485,11 @@ void main() {
     await socket1.connect();
     await socket2.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {
+    await new Future<void>.delayed(const Duration(milliseconds: 1000), () {
       manager.engine.close();
     });
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 3000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 3000), () {});
     expect(values[0], true);
   });
 
@@ -514,7 +514,7 @@ void main() {
 
     await socket1.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], 'done');
     await manager.close();
   });
@@ -541,7 +541,7 @@ void main() {
       });
 
     await socket.open();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], 2);
     await socket.close();
     await manager.close();
@@ -570,7 +570,7 @@ void main() {
 
     socket = manager.socket('/timeout');
     await socket.open();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     expect(values[0], 2);
     await socket.close();
     await manager.close();
@@ -590,13 +590,13 @@ void main() {
         throw new StateError('Not good, we should not try to reconnect.');
       })
       ..on(ManagerEvent.connectError, (List<dynamic> args) async {
-        await new Future<Null>.delayed(const Duration(milliseconds: 500), () async {
+        await new Future<void>.delayed(const Duration(milliseconds: 500), () async {
           values.add('done');
         });
       });
     socket = manager.socket('/invalid');
     await socket.open();
-    await new Future<Null>.delayed(const Duration(seconds: 2), () {});
+    await new Future<void>.delayed(const Duration(seconds: 2), () {});
     expect(values[0], 'done');
     await socket.close();
     await manager.close();
@@ -628,7 +628,7 @@ void main() {
         values.add(reconnects);
       });
     await socket.open();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
     expect(values[1], reconnects);
     expect(values[2], 2);
@@ -660,7 +660,7 @@ void main() {
         values.add(reconnects);
       });
     await socket.open();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
     expect(values[1], reconnects);
     expect(values[2], 2);
@@ -679,7 +679,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values[0]);
     expect(values[0] is String, isTrue);
     await socket.close();
@@ -699,7 +699,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values[0]);
 
     expect(values[0] is Map, isTrue);
@@ -721,7 +721,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values[0].toString());
 
     expect(values[0], buffer);
@@ -745,7 +745,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values[0]);
 
     expect(values[0]['hello'], 'lol');
@@ -769,7 +769,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0], buffer);

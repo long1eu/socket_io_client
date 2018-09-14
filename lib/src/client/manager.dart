@@ -23,7 +23,7 @@ class Manager extends eng.Emitter {
 
   eng.Socket engine;
 
-  ManagerOptions options;
+  final ManagerOptions options;
   Backoff backoff;
   ManagerState readyState;
   Uri url;
@@ -42,10 +42,7 @@ class Manager extends eng.Emitter {
 
   DateTime _lastPing;
 
-  Manager({@required String url, ManagerOptions options}) : assert(url != null) {
-    options = options ?? const ManagerOptions();
-    this.options = options;
-
+  Manager({@required String url, this.options = const ManagerOptions()}) : assert(url != null) {
     _reconnection = options.reconnection;
     reconnectionAttempts = options.reconnectionAttempts;
     reconnectionDelay = options.reconnectionDelay;
@@ -87,7 +84,7 @@ class Manager extends eng.Emitter {
     backoff?.ms = value;
   }
 
-  Future<Null> _emitAll(String event, [List<dynamic> args]) async {
+  Future<void> _emitAll(String event, [List<dynamic> args]) async {
     await emit(event, args);
     for (String key in namespaces.keys) await namespaces[key].emit(event, args);
   }
@@ -100,7 +97,7 @@ class Manager extends eng.Emitter {
     return '$nsp${engine.id}';
   }
 
-  Future<Null> maybeReconnectOnOpen() async {
+  Future<void> maybeReconnectOnOpen() async {
     // Only try to reconnect if it's the first time we're connecting
     if (!_reconnecting && _reconnection && backoff.attempts == 0) await reconnect();
   }
@@ -145,7 +142,7 @@ class Manager extends eng.Emitter {
       final Timer timer = new Timer(new Duration(milliseconds: timeout), () async {
         log.d('connect attempt timed out after $timeout');
         openSub.destroy();
-        await engine.close();
+        engine.close();
         await engine.emit(eng.SocketEvent.error, <Error>[new SocketIOException('timeout')]);
         await _emitAll(ManagerEvent.connectTimeout, <int>[timeout]);
       });
@@ -162,13 +159,13 @@ class Manager extends eng.Emitter {
       ..add(errorSub.destroy)
       ..add(new On(engine, eng.SocketEvent.data, (List<dynamic> args) async => decoder.add(args[0])).destroy);
 
-    await engine.open();
+    engine.open();
 
     log.d('engine state: ${engine.readyState}');
     return this;
   }
 
-  Future<Null> _onOpen() async {
+  Future<void> _onOpen() async {
     log.d('_onOpen');
 
     cleanUp();
@@ -188,18 +185,18 @@ class Manager extends eng.Emitter {
     decoder.onDecoded(onDecoded);
   }
 
-  Future<Null> onPing(List<dynamic> _) async {
+  Future<void> onPing(List<dynamic> _) async {
     _lastPing = new DateTime.now();
     await _emitAll(ManagerEvent.ping);
   }
 
-  Future<Null> onPong(List<dynamic> _) async {
+  Future<void> onPong(List<dynamic> _) async {
     await _emitAll(ManagerEvent.pong, <int>[_lastPing != null ? new DateTime.now().difference(_lastPing).inMilliseconds : 0]);
   }
 
-  Future<Null> onDecoded(Packet packet) async => await emit(ManagerEvent.packet, <Packet>[packet]);
+  Future<void> onDecoded(Packet packet) async => await emit(ManagerEvent.packet, <Packet>[packet]);
 
-  Future<Null> onError(List<dynamic> args) async {
+  Future<void> onError(List<dynamic> args) async {
     log.d('error');
     await _emitAll(ManagerEvent.error, args);
     try {
@@ -233,13 +230,13 @@ class Manager extends eng.Emitter {
     return socket;
   }
 
-  Future<Null> destroy(Socket socket) async {
+  Future<void> destroy(Socket socket) async {
     connecting.remove(socket);
     if (connecting.isNotEmpty) return;
     await close();
   }
 
-  Future<Null> packet(Packet packet) async {
+  Future<void> packet(Packet packet) async {
     log.d('writing packet $packet');
 
     if (packet.query != null && packet.query.isNotEmpty && packet.type == PacketType.connect) {
@@ -260,7 +257,7 @@ class Manager extends eng.Emitter {
     }
   }
 
-  Future<Null> _processPacketQueue() async {
+  Future<void> _processPacketQueue() async {
     log.d('packetBuffer: $packetBuffer');
     if (packetBuffer.isNotEmpty && !encoding) {
       await packet(packetBuffer.removeAt(0));
@@ -278,7 +275,7 @@ class Manager extends eng.Emitter {
     decoder.destroy();
   }
 
-  Future<Null> close() async {
+  Future<void> close() async {
     log.d('disconnect');
     _skipReconnect = true;
     _reconnecting = false;
@@ -287,10 +284,10 @@ class Manager extends eng.Emitter {
 
     backoff.reset();
     readyState = ManagerState.closed;
-    await engine?.close();
+    engine?.close();
   }
 
-  Future<Null> onClose(List<dynamic> reason) async {
+  Future<void> onClose(List<dynamic> reason) async {
     log.d('onClose');
     cleanUp();
     backoff.reset();
@@ -300,7 +297,7 @@ class Manager extends eng.Emitter {
     if (_reconnection && !_skipReconnect) await reconnect();
   }
 
-  Future<Null> reconnect() async {
+  Future<void> reconnect() async {
     if (_reconnecting || _skipReconnect) return;
 
     if (backoff.attempts >= reconnectionAttempts) {
@@ -344,7 +341,7 @@ class Manager extends eng.Emitter {
     }
   }
 
-  Future<Null> onReconnect() async {
+  Future<void> onReconnect() async {
     final int attempts = backoff.attempts;
     _reconnecting = false;
     backoff.reset();

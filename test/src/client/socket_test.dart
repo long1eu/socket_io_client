@@ -23,7 +23,7 @@ void main() {
       });
 
     await socket.connect();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0], socket.io.engine.id);
@@ -41,7 +41,7 @@ void main() {
       });
 
     await socket.connect();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0], '/foo#${socket.io.engine.id}');
@@ -63,7 +63,7 @@ void main() {
       });
 
     await socket.connect();
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0], isNull);
@@ -86,7 +86,7 @@ void main() {
     await socket.connect();
     await socket.disconnect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {
       values.add('done');
     });
     log.d(values.toString());
@@ -117,7 +117,7 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 4000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 4000), () {});
     log.d(values.toString());
 
     expect(values[0], isTrue);
@@ -141,11 +141,11 @@ void main() {
             values.add(socket.id);
           });
 
-        await socket.io.engine.close();
+        socket.io.engine.close();
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 2000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 2000), () {});
     log.d(values.toString());
 
     expect(values[1], isNull);
@@ -163,7 +163,7 @@ void main() {
     ]);
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());
 
     expect(values[0]['query']['c'] == 'd', isTrue);
@@ -179,7 +179,7 @@ void main() {
     });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
+    await new Future<void>.delayed(const Duration(milliseconds: 1000), () {});
     log.d(values.toString());
 
     expect(values[0]['query']['b'] == 'c', isTrue);

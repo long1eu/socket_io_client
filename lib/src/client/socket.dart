@@ -10,7 +10,7 @@ import 'package:socket_io_client/src/models/packet.dart';
 import 'package:socket_io_client/src/models/packet_type.dart';
 import 'package:socket_io_client/src/models/socket_event.dart';
 
-typedef Future<Null> Ack([List<dynamic> args]);
+typedef Future<void> Ack([List<dynamic> args]);
 
 class Socket extends eng.Emitter {
   static final eng.Log log = new eng.Log('Socket');
@@ -40,7 +40,7 @@ class Socket extends eng.Emitter {
   }
 
   /// Connects the socket.
-  Future<Null> open() async {
+  Future<void> open() async {
     log.d('open: $connected');
     if (connected) return;
 
@@ -52,18 +52,18 @@ class Socket extends eng.Emitter {
   }
 
   /// Connects the socket.
-  Future<Socket> connect() => open();
+  Future<void> connect() => open();
 
   /// Send messages.
   ///
   /// [args] data to send;
   /// return a reference of this object.
-  Future<Null> send(dynamic args) async {
+  Future<void> send(dynamic args) async {
     await emit(SocketEvent.message, args);
   }
 
   @override
-  Future<Null> emit(String event, [List<dynamic> args = const <dynamic>[]]) async {
+  Future<void> emit(String event, [List<dynamic> args = const <dynamic>[]]) async {
     log.d('emit called with: $event, args:$args');
     if (SocketEvent.values.contains(event)) return await super.emit(event, args);
 
@@ -90,7 +90,7 @@ class Socket extends eng.Emitter {
   /// [event] the name if the event
   /// [args] data to be sent
   /// return a reference of this object.
-  Future<Null> emitAck(String event, List<dynamic> args, Ack ack) async {
+  Future<void> emitAck(String event, List<dynamic> args, Ack ack) async {
     log.d('emitAck called with: event:$event, args:$args, ack:$ack');
 
     final List<dynamic> list = <dynamic>[];
@@ -112,12 +112,12 @@ class Socket extends eng.Emitter {
     }
   }
 
-  Future<Null> packet(Packet builder) async {
+  Future<void> packet(Packet builder) async {
     builder = builder.copyWith(namespace: namespace);
     await io.packet(builder);
   }
 
-  Future<Null> onOpen(List<dynamic> args) async {
+  Future<void> onOpen(List<dynamic> args) async {
     log.d('transport is open - connecting $args');
 
     if (namespace != '/') {
@@ -130,14 +130,14 @@ class Socket extends eng.Emitter {
     }
   }
 
-  Future<Null> onClose(String reason) async {
+  Future<void> onClose(String reason) async {
     log.d('close ($reason)');
     connected = false;
     id = null;
     await emit(SocketEvent.disconnect, <String>[reason]);
   }
 
-  Future<Null> onPacket(Packet packet) async {
+  Future<void> onPacket(Packet packet) async {
     log.d('onPacket: $packet');
 
     if (packet.namespace != namespace) return;
@@ -167,7 +167,7 @@ class Socket extends eng.Emitter {
     }
   }
 
-  Future<Null> onEvent(Packet packet) async {
+  Future<void> onEvent(Packet packet) async {
     final List<dynamic> args = packet.data;
     log.d('emitting event $args');
 
@@ -206,7 +206,7 @@ class Socket extends eng.Emitter {
     };
   }
 
-  Future<Null> onAck(Packet packet) async {
+  Future<void> onAck(Packet packet) async {
     final Ack ack = acks.remove(packet.id);
 
     if (ack != null) {
@@ -217,14 +217,14 @@ class Socket extends eng.Emitter {
     }
   }
 
-  Future<Null> onConnect() async {
+  Future<void> onConnect() async {
     log.d('onConnect');
     connected = true;
     await emit(SocketEvent.connect);
     await emitBuffered();
   }
 
-  Future<Null> emitBuffered() async {
+  Future<void> emitBuffered() async {
     final List<List<dynamic>> removed = <List<dynamic>>[];
     receiveBuffer
       ..removeWhere((List<dynamic> data) {
@@ -241,20 +241,20 @@ class Socket extends eng.Emitter {
     sendBuffer.clear();
   }
 
-  Future<Null> onDisconnect() async {
+  Future<void> onDisconnect() async {
     log.d('server disconnect ($namespace)');
     await destroy();
     await onClose('io server disconnect');
   }
 
-  Future<Null> destroy() async {
+  Future<void> destroy() async {
     subs?.removeWhere((OnDestroy onDestroy) => onDestroy());
     subs = null;
     await io.destroy(this);
   }
 
   /// Disconnects the socket.
-  Future<Null> close() async {
+  Future<void> close() async {
     if (connected) {
       log.d('performing disconnect ($namespace)');
       await packet(Packet.disconnect);
@@ -264,5 +264,5 @@ class Socket extends eng.Emitter {
   }
 
   /// Disconnects the socket.
-  Future<Null> disconnect() => close();
+  Future<void> disconnect() => close();
 }
