@@ -72,9 +72,7 @@ void main() {
   test('doesNotFireConnectErrorIfWeForceDisconnectInOpeningState', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b..timeout = 100;
-    });
+    const ManagerOptions options = ManagerOptions(timeout: 100);
 
     final Socket socket = Connection.client(options: options);
 

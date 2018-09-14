@@ -18,16 +18,7 @@ void main() {
   test('connectionToLocalHost', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final SocketOptions opts = new SocketOptions((SocketOptionsBuilder b) {
-      b
-        //..port = Connection.PORT
-        ..path = '/socket.io'
-        ..host = 'socket-io-chat.now.sh';
-    });
-
-    final Socket socket = Io.socket('https://socket-io-chat.now.sh', new ManagerOptions((b) {
-      b..options = opts.toBuilder();
-    }));
+    final Socket socket = Connection.client(path: '/');
 
     socket
       ..on(SocketEvent.connect, (List<dynamic> args) async {
@@ -240,7 +231,7 @@ void main() {
       });
     await socket.connect();
 
-    await new Future<Null>.delayed(const Duration(milliseconds: 1000), () {});
+    await new Future<Null>.delayed(const Duration(milliseconds: 2000), () {});
     expect(values[0], 'done');
     await socket.close();
   });
@@ -317,13 +308,12 @@ void main() {
   test('attemptReconnectsAfterAFailedReconnect', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..reconnection = true
-        ..timeout = 0
-        ..reconnectionAttempts = 2
-        ..reconnectionDelay = 10;
-    });
+    const ManagerOptions options = ManagerOptions(
+      reconnection: true,
+      timeout: 0,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 10,
+    );
 
     final Manager manager = new Manager(url: Connection.uri, options: options);
     final Socket socket = manager.socket('/timeout');
@@ -352,14 +342,13 @@ void main() {
     int startTime = 0;
     int prevDelay = 0;
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..reconnection = true
-        ..timeout = 0
-        ..reconnectionAttempts = 3
-        ..reconnectionDelay = 100
-        ..randomizationFactor = 0.2;
-    });
+    const ManagerOptions options = ManagerOptions(
+      reconnection: true,
+      timeout: 0,
+      reconnectionAttempts: 3,
+      reconnectionDelay: 100,
+      randomizationFactor: 0.2,
+    );
 
     final Manager manager = new Manager(url: Connection.uri, options: options);
     final Socket socket = manager.socket('/timeout');
@@ -409,11 +398,7 @@ void main() {
   test('notReconnectWhenForceClosed', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..timeout = 0
-        ..reconnectionDelay = 10;
-    });
+    const ManagerOptions options = ManagerOptions(timeout: 0, reconnectionDelay: 10);
 
     final Socket socket = Connection.client(path: '/invalid', options: options);
     socket
@@ -437,11 +422,7 @@ void main() {
   test('stopReconnectingWhenForceClosed', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..timeout = 0
-        ..reconnectionDelay = 10;
-    });
+    const ManagerOptions options = ManagerOptions(timeout: 0, reconnectionDelay: 10);
 
     final Socket socket = Connection.client(path: '/invalid', options: options);
     socket
@@ -463,13 +444,7 @@ void main() {
 
   test('reconnectAfterStoppingReconnection', () async {
     final List<dynamic> values = <dynamic>[];
-
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..timeout = 0
-        ..reconnectionDelay = 10;
-    });
-
+    const ManagerOptions options = ManagerOptions(timeout: 0, reconnectionDelay: 10);
     final Socket socket = Connection.client(path: '/invalid', options: options, forceNew: true);
     socket
       ..once(SocketEvent.reconnectAttempt, (List<dynamic> args) async {
@@ -548,12 +523,11 @@ void main() {
     final List<dynamic> values = <dynamic>[];
     int reconnects = 0;
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..reconnection = true
-        ..reconnectionAttempts = 2
-        ..reconnectionDelay = 10;
-    });
+    const ManagerOptions options = ManagerOptions(
+      reconnection: true,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 10,
+    );
 
     final Manager manager = new Manager(url: 'http://localhost:3940', options: options);
     final Socket socket = manager.socket('/asd');
@@ -577,13 +551,12 @@ void main() {
     final List<dynamic> values = <dynamic>[];
     int reconnects = 0;
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..reconnection = true
-        ..timeout = 0
-        ..reconnectionAttempts = 2
-        ..reconnectionDelay = 10;
-    });
+    const ManagerOptions options = ManagerOptions(
+      reconnection: true,
+      timeout: 0,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 10,
+    );
 
     final Manager manager = new Manager(url: Connection.uri, options: options);
     Socket socket;
@@ -606,9 +579,7 @@ void main() {
   test('notTryToReconnectWithIncorrectPortWhenReconnectionDisabled', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b..reconnection = false;
-    });
+    const ManagerOptions options = ManagerOptions(reconnection: false);
 
     final Manager manager = new Manager(url: 'http://localhost:9823', options: options);
     Socket socket;
@@ -635,13 +606,12 @@ void main() {
     final List<dynamic> values = <dynamic>[];
     int reconnects = 0;
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..reconnection = true
-        ..timeout = 0
-        ..reconnectionAttempts = 2
-        ..reconnectionDelay = 10;
-    });
+    const ManagerOptions options = ManagerOptions(
+      reconnection: true,
+      timeout: 0,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 10,
+    );
 
     final Manager manager = new Manager(url: Connection.uri, options: options);
     final Socket socket = manager.socket('/timeout_socket');
@@ -668,13 +638,12 @@ void main() {
     final List<dynamic> values = <dynamic>[];
     int reconnects = 0;
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..reconnection = true
-        ..timeout = 0
-        ..reconnectionAttempts = 2
-        ..reconnectionDelay = 10;
-    });
+    const ManagerOptions options = ManagerOptions(
+      reconnection: true,
+      timeout: 0,
+      reconnectionAttempts: 2,
+      reconnectionDelay: 10,
+    );
 
     final Manager manager = new Manager(url: Connection.uri, options: options);
     final Socket socket = manager.socket('/timeout_socket');

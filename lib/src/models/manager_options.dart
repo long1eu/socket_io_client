@@ -1,16 +1,17 @@
 import 'dart:io' hide Socket;
 
-import 'package:engine_io_client/engine_io_client.dart' show Socket, SocketOptions, ToStringHelper, TransportOptions;
+import 'package:engine_io_client/engine_io_client.dart'
+    show OnRequestHeaders, OnResponseHeaders, Socket, SocketOptions, TransportOptions;
 import 'package:socket_io_client/src/parser/io_parser.dart';
 
 class ManagerOptions extends SocketOptions {
-  ManagerOptions({
-    this.timeout = 2000,
-    this.reconnection = true,
-    this.reconnectionAttempts = 0x3FFFFFFF,
-    this.reconnectionDelay = 1000,
-    this.reconnectionDelayMax = 5000,
-    this.randomizationFactor = 0.5,
+  const ManagerOptions({
+    int timeout,
+    bool reconnection,
+    int reconnectionAttempts,
+    int reconnectionDelay,
+    int reconnectionDelayMax,
+    double randomizationFactor,
     this.encoder,
     this.decoder,
     List<String> transports,
@@ -20,17 +21,24 @@ class ManagerOptions extends SocketOptions {
     String rawQuery,
     Map<String, TransportOptions> transportOptions,
     String hostname,
-    String path = '/socket.io',
+    String path,
     String timestampParam,
     bool secure,
     bool timestampRequests,
     int port,
     int policyPort,
     Map<String, String> query,
-    Map<String, List<String>> headers,
+    OnRequestHeaders onRequestHeaders,
+    OnResponseHeaders onResponseHeaders,
     Socket socket,
     SecurityContext securityContext,
-  }) : super(
+  })  : timeout = timeout ?? 2000,
+        reconnection = reconnection ?? true,
+        reconnectionAttempts = reconnectionAttempts ?? 0x3FFFFFFF,
+        reconnectionDelay = reconnectionDelay ?? 1000,
+        reconnectionDelayMax = reconnectionDelayMax ?? 5000,
+        randomizationFactor = randomizationFactor ?? 0.5,
+        super(
             transports: transports,
             upgrade: upgrade,
             rememberUpgrade: rememberUpgrade,
@@ -38,14 +46,15 @@ class ManagerOptions extends SocketOptions {
             rawQuery: rawQuery,
             transportOptions: transportOptions,
             hostname: hostname,
-            path: path,
+            path: path ?? '/socket.io',
             timestampParam: timestampParam,
             secure: secure,
             timestampRequests: timestampRequests,
             port: port,
             policyPort: policyPort,
             query: query,
-            headers: headers,
+            onRequestHeaders: onRequestHeaders,
+            onResponseHeaders: onResponseHeaders,
             socket: socket,
             securityContext: securityContext);
 
@@ -67,7 +76,19 @@ class ManagerOptions extends SocketOptions {
   final IoDecoder decoder;
 
   @override
-  TransportOptions copyWith({
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'timeout': timeout,
+      'reconnection': reconnection,
+      'reconnectionAttempts': reconnectionAttempts,
+      'reconnectionDelay': reconnectionDelay,
+      'reconnectionDelayMax': reconnectionDelayMax,
+      'randomizationFactor': randomizationFactor,
+    }..addAll(super.toJson());
+  }
+
+  @override
+  ManagerOptions copyWith({
     int timeout,
     bool reconnection,
     int reconnectionAttempts,
@@ -76,11 +97,11 @@ class ManagerOptions extends SocketOptions {
     double randomizationFactor,
     IoEncoder encoder,
     IoDecoder decoder,
+    String host,
+    String rawQuery,
     List<String> transports,
     bool upgrade,
     bool rememberUpgrade,
-    String host,
-    String rawQuery,
     Map<String, TransportOptions> transportOptions,
     String hostname,
     String path,
@@ -90,7 +111,8 @@ class ManagerOptions extends SocketOptions {
     int port,
     int policyPort,
     Map<String, String> query,
-    Map<String, List<String>> headers,
+    OnRequestHeaders onRequestHeaders,
+    OnResponseHeaders onResponseHeaders,
     Socket socket,
     SecurityContext securityContext,
   }) {
@@ -117,23 +139,9 @@ class ManagerOptions extends SocketOptions {
         port: port ?? this.port,
         policyPort: policyPort ?? this.policyPort,
         query: query ?? this.query,
-        headers: headers ?? this.headers,
+        onResponseHeaders: onResponseHeaders ?? this.onResponseHeaders,
+        onRequestHeaders: onRequestHeaders ?? this.onRequestHeaders,
         socket: socket ?? this.socket,
         securityContext: securityContext ?? this.securityContext);
-  }
-
-  @override
-  String toString() {
-    return (new ToStringHelper('ManagerOptions')
-          ..add('timeout', '$timeout')
-          ..add('reconnection', '$reconnection')
-          ..add('reconnectionAttempts', '$reconnectionAttempts')
-          ..add('reconnectionDelay', '$reconnectionDelay')
-          ..add('reconnectionDelayMax', '$reconnectionDelayMax')
-          ..add('randomizationFactor', '$randomizationFactor')
-          ..add('encoder', '$encoder')
-          ..add('decoder', '$decoder')
-          ..add('SocketOptions', '${super.toString()}'))
-        .toString();
   }
 }

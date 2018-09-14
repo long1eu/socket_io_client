@@ -6,51 +6,40 @@ import 'helpers.dart';
 
 void main() {
   test('encodeConnection', () {
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.connect
-        ..namespace = '/woot';
-    });
-
+    const Packet packet = Packet(type: PacketType.connect, namespace: '/woot');
     Helpers.test(packet);
   });
 
   test('encodeDisconnection', () {
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.disconnect
-        ..namespace = '/woot';
-    });
-
+    const Packet packet = Packet(type: PacketType.disconnect, namespace: '/woot');
     Helpers.test(packet);
   });
 
   //this gives a false negative
   test('encodeEvent', () {
-    Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.event
-        ..data = <dynamic>['a', 1, <String, dynamic>{}]
-        ..namespace = '/';
-    });
+    Packet packet = const Packet(
+      type: PacketType.event,
+      data: const <dynamic>['a', 1, <String, dynamic>{}],
+      namespace: '/',
+    );
+
     Helpers.test(packet);
 
-    packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.event
-        ..data = <dynamic>['a', 1, <String, dynamic>{}]
-        ..namespace = '/test';
-    });
+    packet = const Packet(
+      type: PacketType.event,
+      data: const <dynamic>['a', 1, <String, dynamic>{}],
+      namespace: '/test',
+    );
+
     Helpers.test(packet);
   });
 
   test('encodeAck', () {
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.ack
-        ..id = 123
-        ..namespace = '/';
-    });
+    const Packet packet = const Packet(
+      type: PacketType.ack,
+      id: 123,
+      namespace: '/',
+    );
 
     Helpers.test(packet);
   });

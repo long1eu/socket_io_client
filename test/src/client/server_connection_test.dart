@@ -1,9 +1,7 @@
 import 'dart:async';
 
-import 'package:built_collection/built_collection.dart';
 import 'package:engine_io_client/engine_io_client.dart' as eng;
 import 'package:socket_io_client/src/client/socket.dart';
-import 'package:socket_io_client/src/models/manager_event.dart';
 import 'package:socket_io_client/src/models/manager_options.dart';
 import 'package:socket_io_client/src/models/socket_event.dart';
 import 'package:test/test.dart';
@@ -244,31 +242,21 @@ void main() {
   test('pollingHeaders', () async {
     final List<dynamic> values = <dynamic>[];
 
-    final ManagerOptions options = new ManagerOptions((ManagerOptionsBuilder b) {
-      b
-        ..options = (new eng.SocketOptions().toBuilder()
-          ..transports = new ListBuilder<String>(<String>[eng.Polling.NAME])
-          ..path = '/socket.io');
-    });
+    final ManagerOptions options = ManagerOptions(
+        transports: <String>[eng.Polling.NAME],
+        path: '/socket.io',
+        onRequestHeaders: (Map<String, String> headers) {
+          log.d('requestHeaders $headers');
+          headers['X-SocketIO'] = 'hi';
+        },
+        onResponseHeaders: (Map<String, String> headers) {
+          log.d('responseHeaders $headers');
+          final String value = headers['X-SocketIO'.toLowerCase()];
+          values.add(value != null ? value : '');
+        });
 
     final Socket socket = Connection.client(options: options);
 
-    socket.io.on(ManagerEvent.transport, (List<dynamic> args) {
-      log.d('transport $args');
-      final eng.Transport transport = args[0];
-      transport
-        ..on(eng.TransportEvent.requestHeaders, (List<dynamic> args) {
-          log.d('requestHeaders $args');
-          final Map<String, List<String>> headers = args[0];
-          headers['X-SocketIO'] = <String>['hi'];
-        })
-        ..on(eng.TransportEvent.responseHeaders, (List<dynamic> args) {
-          log.d('responseHeaders $args');
-          final Map<String, List<String>> headers = args[0];
-          final List<String> value = headers['X-SocketIO'.toLowerCase()];
-          values.add(value != null ? value[0] : '');
-        });
-    });
     await socket.connect();
     await new Future<Null>.delayed(const Duration(milliseconds: 500), () {});
     log.d(values.toString());

@@ -8,25 +8,23 @@ import 'helpers.dart';
 
 void main() {
   test('encodeByteArray', () {
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.binaryEvent
-        ..data = encodeUtf8('abc')
-        ..id = 23
-        ..namespace = '/cool';
-    });
+    final Packet packet = new Packet(
+      type: PacketType.binaryEvent,
+      data: encodeUtf8('abc'),
+      id: 23,
+      namespace: '/cool',
+    );
 
     Helpers.testBin(packet);
   });
 
   test('encodeByteArray2', () {
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.binaryEvent
-        ..data = new List<int>.generate(2, (_) => 0)
-        ..id = 0
-        ..namespace = '/';
-    });
+    final Packet packet = new Packet(
+      type: PacketType.binaryEvent,
+      data: new List<int>.generate(2, (_) => 0),
+      id: 0,
+      namespace: '/',
+    );
 
     Helpers.testBin(packet);
   });
@@ -41,13 +39,12 @@ void main() {
       }
     };
 
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.binaryEvent
-        ..data = data
-        ..id = 99
-        ..namespace = '/deep';
-    });
+    final Packet packet = new Packet(
+      type: PacketType.binaryEvent,
+      data: data,
+      id: 99,
+      namespace: '/deep',
+    );
 
     Helpers.testBin(packet);
   });
@@ -61,13 +58,12 @@ void main() {
     };
     data['h'] = new List<int>.generate(9, (_) => 0);
 
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.binaryEvent
-        ..data = data
-        ..id = 600
-        ..namespace = '/';
-    });
+    final Packet packet = new Packet(
+      type: PacketType.binaryEvent,
+      data: data,
+      id: 600,
+      namespace: '/',
+    );
 
     Helpers.testBin(packet);
   });
@@ -76,13 +72,12 @@ void main() {
     final List<dynamic> data = <dynamic>['a', null, <String, dynamic>{}];
     data[1] = 'abc'.codeUnits;
 
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.binaryAck
-        ..data = data
-        ..id = 127
-        ..namespace = '/back';
-    });
+    final Packet packet = new Packet(
+      type: PacketType.binaryEvent,
+      data: data,
+      id: 127,
+      namespace: '/back',
+    );
 
     Helpers.testBin(packet);
   });
@@ -93,13 +88,12 @@ void main() {
       new List<int>.generate(3, (_) => 0),
     ];
 
-    final Packet packet = new Packet((PacketBuilder b) {
-      b
-        ..type = PacketType.binaryEvent
-        ..data = data
-        ..id = 0
-        ..namespace = '/';
-    });
+    final Packet packet = new Packet(
+      type: PacketType.binaryEvent,
+      data: data,
+      id: 0,
+      namespace: '/',
+    );
 
     final List<dynamic> encodedPackets = new IoEncoder().encode(packet);
 

@@ -43,7 +43,7 @@ void main() {
   });
 
   test('ipv6', () {
-    final String url = 'http://[::1]';
+    const String url = 'http://[::1]';
     final Uri uri = Url.parse(url);
 
     expect(uri.scheme, 'http');

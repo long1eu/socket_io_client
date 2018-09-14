@@ -43,7 +43,7 @@ class Manager extends eng.Emitter {
   DateTime _lastPing;
 
   Manager({@required String url, ManagerOptions options}) : assert(url != null) {
-    options = options ?? new ManagerOptions();
+    options = options ?? const ManagerOptions();
     this.options = options;
 
     _reconnection = options.reconnection;
@@ -58,7 +58,7 @@ class Manager extends eng.Emitter {
       ..jitter = _randomizationFactor;
 
     timeout = options.timeout;
-    readyState = ManagerState.CLOSED;
+    readyState = ManagerState.closed;
     this.url = Uri.parse(url);
     encoding = false;
     packetBuffer = <Packet>[];
@@ -89,8 +89,7 @@ class Manager extends eng.Emitter {
 
   Future<Null> _emitAll(String event, [List<dynamic> args]) async {
     await emit(event, args);
-    for (String key in namespaces.keys)
-      await namespaces[key].emit(event, args);
+    for (String key in namespaces.keys) await namespaces[key].emit(event, args);
   }
 
   ///Update `socket.id` of all sockets
@@ -109,12 +108,12 @@ class Manager extends eng.Emitter {
   Future<Manager> open({eng.Listener listener}) async {
     log.d('readyState $readyState');
 
-    if (readyState == ManagerState.OPEN || readyState == ManagerState.OPENING) return this;
+    if (readyState == ManagerState.open || readyState == ManagerState.opening) return this;
 
     log.d('opening $url');
-    engine = new eng.Socket(new eng.SocketOptions.fromUri(url, options.options));
+    engine = new eng.Socket(new eng.SocketOptions.fromUri(url, options));
 
-    readyState = ManagerState.OPENING;
+    readyState = ManagerState.opening;
     _skipReconnect = false;
 
     // propagate transport event.
@@ -129,7 +128,7 @@ class Manager extends eng.Emitter {
     final On errorSub = new On(engine, eng.SocketEvent.error, (List<dynamic> objects) async {
       log.d('connect_error');
       cleanUp();
-      readyState = ManagerState.CLOSED;
+      readyState = ManagerState.closed;
       await _emitAll(ManagerEvent.connectError, objects);
       if (listener != null) {
         await listener(<Error>[new SocketIOException('Connection error', objects is Error ? objects : null)]);
@@ -158,8 +157,10 @@ class Manager extends eng.Emitter {
     }
 
     decoder.onDecoded(onDecoded);
-    subscriptions..add(openSub.destroy)..add(errorSub.destroy)..add(
-        new On(engine, eng.SocketEvent.data, (List<dynamic> args) async => decoder.add(args[0])).destroy);
+    subscriptions
+      ..add(openSub.destroy)
+      ..add(errorSub.destroy)
+      ..add(new On(engine, eng.SocketEvent.data, (List<dynamic> args) async => decoder.add(args[0])).destroy);
 
     await engine.open();
 
@@ -171,18 +172,19 @@ class Manager extends eng.Emitter {
     log.d('_onOpen');
 
     cleanUp();
-    readyState = ManagerState.OPEN;
+    readyState = ManagerState.open;
     await emit(ManagerEvent.open);
     log.d('readyState: $readyState');
 
-    subscriptions..add(new On(engine, eng.SocketEvent.ping, (List<dynamic> args) async => await onPing(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.pong, (List<dynamic> args) async => await onPong(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.error, (List<dynamic> args) async => await onError(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.close, (List<dynamic> args) async => await onClose(args)).destroy)..add(
-        new On(engine, eng.SocketEvent.data, (List<dynamic> args) {
-          log.d('data $args');
-          decoder.add(args[0]);
-        }).destroy);
+    subscriptions
+      ..add(new On(engine, eng.SocketEvent.ping, (List<dynamic> args) async => await onPing(args)).destroy)
+      ..add(new On(engine, eng.SocketEvent.pong, (List<dynamic> args) async => await onPong(args)).destroy)
+      ..add(new On(engine, eng.SocketEvent.error, (List<dynamic> args) async => await onError(args)).destroy)
+      ..add(new On(engine, eng.SocketEvent.close, (List<dynamic> args) async => await onClose(args)).destroy)
+      ..add(new On(engine, eng.SocketEvent.data, (List<dynamic> args) {
+        log.d('data $args');
+        decoder.add(args[0]);
+      }).destroy);
     decoder.onDecoded(onDecoded);
   }
 
@@ -192,10 +194,7 @@ class Manager extends eng.Emitter {
   }
 
   Future<Null> onPong(List<dynamic> _) async {
-    await _emitAll(ManagerEvent.pong, <int>[_lastPing != null ? new DateTime.now()
-        .difference(_lastPing)
-        .inMilliseconds : 0
-    ]);
+    await _emitAll(ManagerEvent.pong, <int>[_lastPing != null ? new DateTime.now().difference(_lastPing).inMilliseconds : 0]);
   }
 
   Future<Null> onDecoded(Packet packet) async => await emit(ManagerEvent.packet, <Packet>[packet]);
@@ -220,14 +219,16 @@ class Manager extends eng.Emitter {
       socket = new Socket(this, namespace, opts);
       namespaces[namespace] = socket;
 
-      socket..on(SocketEvent.connecting, (List<dynamic> args) {
-        log.d('connecting: $args');
-        connecting.add(socket);
-      })..on(SocketEvent.connect, (List<dynamic> args) {
-        log.d('connect: $args');
-        socket.id = generateId(namespace);
-        log.d('socketId: ${socket.id}');
-      });
+      socket
+        ..on(SocketEvent.connecting, (List<dynamic> args) {
+          log.d('connecting: $args');
+          connecting.add(socket);
+        })
+        ..on(SocketEvent.connect, (List<dynamic> args) {
+          log.d('connect: $args');
+          socket.id = generateId(namespace);
+          log.d('socketId: ${socket.id}');
+        });
     }
     return socket;
   }
@@ -241,17 +242,17 @@ class Manager extends eng.Emitter {
   Future<Null> packet(Packet packet) async {
     log.d('writing packet $packet');
 
-    final PacketBuilder builder = packet.toBuilder();
     if (packet.query != null && packet.query.isNotEmpty && packet.type == PacketType.connect) {
-      builder.namespace += '?${packet.query}';
+      packet = packet.copyWith(namespace: '${packet.namespace}?${packet.query}');
     }
-    packet = builder.build();
+
     log.d('writing packet $packet');
 
     if (!encoding) {
       encoding = true;
-      for (dynamic value in encoder.encode(packet))
+      for (dynamic value in encoder.encode(packet)) {
         await engine.write(value);
+      }
       encoding = false;
       await _processPacketQueue();
     } else {
@@ -261,7 +262,9 @@ class Manager extends eng.Emitter {
 
   Future<Null> _processPacketQueue() async {
     log.d('packetBuffer: $packetBuffer');
-    if (packetBuffer.isNotEmpty && !encoding) await packet(packetBuffer.removeAt(0));
+    if (packetBuffer.isNotEmpty && !encoding) {
+      await packet(packetBuffer.removeAt(0));
+    }
   }
 
   void cleanUp() {
@@ -280,10 +283,10 @@ class Manager extends eng.Emitter {
     _skipReconnect = true;
     _reconnecting = false;
     // [onClose] will not fire because an open event never happened
-    if (readyState != ManagerState.OPEN) cleanUp();
+    if (readyState != ManagerState.open) cleanUp();
 
     backoff.reset();
-    readyState = ManagerState.CLOSED;
+    readyState = ManagerState.closed;
     await engine?.close();
   }
 
@@ -291,7 +294,7 @@ class Manager extends eng.Emitter {
     log.d('onClose');
     cleanUp();
     backoff.reset();
-    readyState = ManagerState.CLOSED;
+    readyState = ManagerState.closed;
     await emit(ManagerEvent.close, reason);
 
     if (_reconnection && !_skipReconnect) await reconnect();

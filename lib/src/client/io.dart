@@ -14,7 +14,7 @@ class Io {
   static Socket socket(String uri, [ManagerOptions options, bool forceNew, bool multiplex]) {
     forceNew ??= false;
     multiplex ??= true;
-    options = options ?? new ManagerOptions();
+    options = options ?? const ManagerOptions();
 
     final Uri source = Url.parse(uri);
     final String id = Url.extractId(source.toString());
@@ -36,8 +36,8 @@ class Io {
     }
 
     final String query = source.query;
-    if (query != null && (options.options.rawQuery == null || options.options.rawQuery.isEmpty)) {
-      options = (options.toBuilder()..options = (options.options.toBuilder()..rawQuery = query)).build();
+    if (query != null && (options.rawQuery == null || options.rawQuery.isEmpty)) {
+      options = options.copyWith(rawQuery: query);
     }
     log.d(io);
 

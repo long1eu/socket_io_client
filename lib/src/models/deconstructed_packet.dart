@@ -1,4 +1,5 @@
-import 'package:engine_io_client/engine_io_client.dart' hide Packet;
+import 'dart:convert';
+
 import 'package:meta/meta.dart';
 import 'package:socket_io_client/src/models/packet.dart';
 
@@ -16,10 +17,15 @@ class DeconstructedPacket {
     );
   }
 
-  @override
-  String toString() {
-    return (new ToStringHelper('DeconstructedPacket')..add('packet', packet)..add('buffers', buffers)).toString();
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'packet': packet,
+      'buffers': buffers,
+    };
   }
+
+  @override
+  String toString() => jsonEncode(toJson(), toEncodable: (Object it) => it.toString());
 
   @override
   bool operator ==(Object other) =>

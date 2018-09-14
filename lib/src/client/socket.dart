@@ -27,7 +27,7 @@ class Socket extends eng.Emitter {
   String query;
   Map<int, Ack> acks = <int, Ack>{};
 
-  Socket(this.io, this.namespace, ManagerOptions opts) : query = opts?.options?.rawQuery;
+  Socket(this.io, this.namespace, ManagerOptions opts) : query = opts?.rawQuery;
 
   void subEvents() {
     if (subs != null) return;
@@ -47,12 +47,12 @@ class Socket extends eng.Emitter {
     subEvents();
     await io.open(); // ensure open
     log.d(io.readyState);
-    if (io.readyState == ManagerState.OPEN) await onOpen(null);
+    if (io.readyState == ManagerState.open) await onOpen(null);
     await emit(SocketEvent.connecting);
   }
 
   /// Connects the socket.
-  Future<Socket> connect() async => await open();
+  Future<Socket> connect() => open();
 
   /// Send messages.
   ///
@@ -97,33 +97,35 @@ class Socket extends eng.Emitter {
     list.add(event);
     if (args != null) args.forEach(list.add);
 
-    final PacketBuilder builder = new Packet.fromValues(PacketType.event).toBuilder()..data = list;
+    Packet builder = Packet(type: PacketType.event, data: list);
 
     if (ack != null) {
       log.d('emitting packet with ack id $ids');
       acks[ids] = ack;
-      builder.id = ids++;
+      builder = builder.copyWith(id: ids++);
     }
-    log.d('emitAck-Connected: $connected packet: ${builder.build()}');
+    log.d('emitAck-Connected: $connected packet: $builder');
     if (connected) {
       await packet(builder);
     } else {
-      sendBuffer.add(builder.build());
+      sendBuffer.add(builder);
     }
   }
 
-  Future<Null> packet(PacketBuilder builder) async {
-    builder.namespace = namespace;
-    await io.packet(builder.build());
+  Future<Null> packet(Packet builder) async {
+    builder = builder.copyWith(namespace: namespace);
+    await io.packet(builder);
   }
 
   Future<Null> onOpen(List<dynamic> args) async {
     log.d('transport is open - connecting $args');
 
     if (namespace != '/') {
-      final PacketBuilder builder = new Packet.fromValues(PacketType.connect).toBuilder();
-      if (query != null && query.isNotEmpty) builder.query = query;
-      log.d(builder.build());
+      Packet builder = const Packet(type: PacketType.connect);
+      if (query != null && query.isNotEmpty) {
+        builder = builder.copyWith(query: query);
+      }
+      log.d(builder);
       await packet(builder);
     }
   }
@@ -196,10 +198,11 @@ class Socket extends eng.Emitter {
       final List<dynamic> jsonArgs = <dynamic>[];
       jsonArgs.addAll(args);
 
-      await packet(new PacketBuilder()
-        ..type = PacketType.ack
-        ..id = id
-        ..data = jsonArgs);
+      await packet(Packet(
+        type: PacketType.ack,
+        id: id,
+        data: jsonArgs,
+      ));
     };
   }
 
@@ -231,7 +234,9 @@ class Socket extends eng.Emitter {
       ..clear();
 
     for (List<dynamic> data in removed) await super.emit(data[0], data);
-    for (Packet packet in sendBuffer) await this.packet(packet.toBuilder());
+    for (Packet packet in sendBuffer) {
+      await this.packet(packet);
+    }
 
     sendBuffer.clear();
   }
@@ -252,12 +257,12 @@ class Socket extends eng.Emitter {
   Future<Null> close() async {
     if (connected) {
       log.d('performing disconnect ($namespace)');
-      await packet(new Packet.fromValues(PacketType.disconnect).toBuilder());
+      await packet(Packet.disconnect);
     }
     await destroy();
     if (connected) await onClose('io client disconnect');
   }
 
   /// Disconnects the socket.
-  Future<Null> disconnect() async => await close();
+  Future<Null> disconnect() => close();
 }

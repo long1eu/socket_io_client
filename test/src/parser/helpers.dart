@@ -26,11 +26,7 @@ class Helpers {
 
     decoder = new IoDecoder();
     decoder.onDecoded((Packet p) {
-      obj = (obj.toBuilder()
-            ..data = originalData
-            ..attachments = -1)
-          .build();
-
+      obj = obj.copyWith(data: originalData, attachments: -1);
       //expect(p, obj);
     });
 
